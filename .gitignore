@@ -24,6 +24,7 @@ CMakeFiles/
 *.vcxproj.user
 *.VC.opendb
 *.VC.db
+*.sdf
 Debug/
 Win32/
 ipch/
