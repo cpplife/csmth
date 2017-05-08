@@ -10,6 +10,7 @@ set(HEADERS ${HEADERS}
 set(TINYXML_SRCS ./tinyxml2/tinyxml2.cpp)
 
 set(SRCS ${TINYXML_SRCS} ${SRCS}
+	./src/net_util.cpp
 	./src/smth.cpp
 	./src/main.cpp
     )

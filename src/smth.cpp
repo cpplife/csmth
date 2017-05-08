@@ -1,95 +1,58 @@
-#include <windows.h>
+#include <cassert>
+#include <cstdlib>
 
-#include "curl.h"
+#include "net_util.h"
+#include "tinyxml2.h"
 #include "smth.h"
 
-#define CURL_APIENTRY
-
-typedef CURL* (CURL_APIENTRY* PFN_CURL_EASY_INIT) ( void );
-typedef void  (CURL_APIENTRY* PFN_CURL_EASY_CLEANUP) ( CURL* handle );
-typedef CURLcode (CURL_APIENTRY* PFN_CURL_EASY_SETOPT) (CURL *handle, CURLoption option, ...);
-typedef CURLcode (CURL_APIENTRY* PFN_CURL_EASY_PERFORM) (CURL * easy_handle );
-typedef struct curl_slist*(CURL_APIENTRY* PFN_CURL_SLIST_APPEND) (struct curl_slist * list, const char * string );
-typedef void (CURL_APIENTRY* PFN_CURL_SLIST_FREE_ALL) (struct curl_slist * list);
 
 static struct {
-
-	void* module;
-
-	PFN_CURL_EASY_INIT    curl_easy_init;
-	PFN_CURL_EASY_CLEANUP curl_easy_cleanup;
-	PFN_CURL_EASY_SETOPT  curl_easy_setopt;
-	PFN_CURL_EASY_PERFORM curl_easy_perform;
-
-	PFN_CURL_SLIST_APPEND   curl_slist_append;
-	PFN_CURL_SLIST_FREE_ALL curl_slist_free_all;
-} gsCurl;
-
-static struct {
-	CURL* curl;
 } gsSmth;
 
-static bool Smth_InitCurl( void )
+static std::wstring Smth_ClearMetaTag( const std::wstring& text )
 {
-	gsCurl.module = LoadLibraryA( "libcurl.dll" );
-	if ( gsCurl.module == nullptr ) {
-		return false;
+	std::wstring s = text;
+	while ( true ) {
+		int index = s.find( L"<meta" );
+		if ( index != std::wstring::npos ) {
+
+			int end = s.find( L">", index );
+			assert( end != std::wstring::npos );
+
+			s = s.substr( 0, index ) + s.substr( end + 1, s.length() - end - 1 );
+
+		}
+		else {
+			break;
+		}
 	}
 
-	gsCurl.curl_easy_init    = (PFN_CURL_EASY_INIT)GetProcAddress(    (HMODULE)gsCurl.module, "curl_easy_init"    );
-	gsCurl.curl_easy_cleanup = (PFN_CURL_EASY_CLEANUP)GetProcAddress( (HMODULE)gsCurl.module, "curl_easy_cleanup" );
-	gsCurl.curl_easy_setopt  = (PFN_CURL_EASY_SETOPT)GetProcAddress(  (HMODULE)gsCurl.module, "curl_easy_setopt"  );
-	gsCurl.curl_easy_perform = (PFN_CURL_EASY_PERFORM)GetProcAddress( (HMODULE)gsCurl.module, "curl_easy_perform" );
-
-	gsCurl.curl_slist_append   = (PFN_CURL_SLIST_APPEND)GetProcAddress(   (HMODULE)gsCurl.module, "curl_slist_append"   );
-	gsCurl.curl_slist_free_all = (PFN_CURL_SLIST_FREE_ALL)GetProcAddress( (HMODULE)gsCurl.module, "curl_slist_free_all" );
-
-	return true;
-}
-
-static void Smth_DeinitCurl( void )
-{
-	gsCurl.curl_easy_init    = nullptr;
-	gsCurl.curl_easy_cleanup = nullptr;
-	gsCurl.curl_easy_setopt  = nullptr;
-	gsCurl.curl_easy_perform = nullptr;
-
-	gsCurl.curl_slist_append   = nullptr;
-	gsCurl.curl_slist_free_all = nullptr;
-
-	if ( gsCurl.module != nullptr ) {
-		FreeLibrary( (HMODULE)gsCurl.module );
-	}
-	gsCurl.module = nullptr;
+	return s;
 }
 
 
 bool Smth_Init( void )
 {
-	if ( Smth_InitCurl() ) {
-		gsSmth.curl = gsCurl.curl_easy_init();
-		if ( gsSmth.curl != nullptr ) {
-			curl_slist* chunk = nullptr;
-			chunk = gsCurl.curl_slist_append( chunk, "Accept:" );
+	if ( Net_Init() ) {
+		std::wstring result = Net_Get( "m.newsmth.net" );
+		result = Smth_ClearMetaTag( result );
 
-			gsCurl.curl_easy_setopt( gsSmth.curl, CURLOPT_HTTPHEADER, chunk );
-			gsCurl.curl_easy_setopt( gsSmth.curl, CURLOPT_URL, "m.newsmth.net" );
-			gsCurl.curl_easy_setopt( gsSmth.curl, CURLOPT_VERBOSE, 0 );
+		tinyxml2::XMLDocument doc;
+		doc.Parse( (const char*)result.c_str(), result.length()*2 );
+		tinyxml2::XMLPrinter printer( 0, true );
+		doc.Print( &printer );
+		doc.SaveFile( "m.html" );
 
-			CURLcode res = gsCurl.curl_easy_perform( gsSmth.curl );
 
-			gsCurl.curl_slist_free_all( chunk );
+		printf( printer.CStr() );
+		
 
-			return true;
-		}
+		return true;
 	}
 	return false;
 }
 
 void Smth_Deinit( void )
 {
-	if ( gsSmth.curl != nullptr ) {
-		gsCurl.curl_easy_cleanup( gsSmth.curl );
-	}
-	Smth_DeinitCurl();
+	Net_Deinit();
 }
