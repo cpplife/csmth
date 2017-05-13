@@ -1,8 +1,6 @@
 #include <windows.h>
 #include <thread>
 #include <vector>
-#include <codecvt>
-#include <locale>
 
 #include "curl.h"
 #include "net_util.h"
@@ -74,9 +72,9 @@ static size_t Net_CurlWriteCallback( char* ptr, size_t size, size_t nmemb, void*
 	return size*nmemb;
 }
 
-std::wstring Net_Get( const std::string& url )
+std::string Net_Get( const std::string& url )
 {
-	if (gsNetInst.libcurl == nullptr) return std::wstring();
+	if (gsNetInst.libcurl == nullptr) return std::string();
 
 	std::vector<char> data;
 
@@ -101,6 +99,5 @@ std::wstring Net_Get( const std::string& url )
 
 	std::string utf8_text = std::string( data.begin(), data.end() );
 
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	return converter.from_bytes( utf8_text );
+	return utf8_text;
 }
