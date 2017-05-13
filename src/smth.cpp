@@ -146,6 +146,46 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 	return page;
 }
 
+BoardPage Smth_GetBoardPage( const std::string& htmlText )
+{
+	BoardPage page;
+
+	const char* beginTag = "<ul class=\"list sec\">";
+	const char* endTag = "</ul>";
+	int index = htmlText.find( beginTag );
+	if ( index != std::string::npos ) {
+		int end = htmlText.find( endTag, index + 1 );
+		if ( end != std::string::npos ) {
+			
+			std::string titleText = htmlText.substr( index, end - index );
+			//
+			std::smatch m;
+			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
+			while ( std::regex_search( titleText, m, r ) ) {
+
+				std::smatch um;
+
+				std::string mstr = m.str();
+				BoardItem item;
+
+				std::regex r( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
+				if (std::regex_search( mstr, um, r ) ) {
+					item.url   = um.str(1);
+					item.title = Smth_ClearHtmlTags( um.str(2) );
+
+					std::wstring t = Smth_Utf8StringToWString(item.title);
+					const wchar_t* s = t.c_str();
+					wprintf(L"%s\n", s);
+				}
+
+				page.items.push_back( item );
+
+				titleText = m.suffix();
+			}
+		}
+	}
+	return page;
+}
 ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 {
 	ArticlePage page;
@@ -251,6 +291,12 @@ void Smth_Update( void )
 			break;
 		case 3:
 			system( "cls" );
+			result = Net_Get( "http://m.newsmth.net/board/AutoTravel" );
+			Smth_GetBoardPage( result );
+			wprintf(L"\n");
+			break;
+		case 4:
+			system( "cls" );
 			result = Net_Get( "http://m.newsmth.net/article/AutoTravel/13459460" );
 			Smth_GetArticlePage( result );
 			break;
@@ -261,6 +307,7 @@ void Smth_Update( void )
 
 		c = _getch();
 		i += 1;
+		i = i % 5;
 
 	} while ( c != '!' && c != 3 );
 }

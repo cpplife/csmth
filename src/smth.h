@@ -15,6 +15,19 @@ struct SectionPage {
 	std::vector<TitleItem> items;
 };
 
+struct BoardItem {
+	std::string url;
+	std::string title;
+	std::string author;
+	std::string last_replier;
+};
+
+struct BoardPage {
+	std::string board_cn;
+	std::string board_en;
+	std::vector<BoardItem> items;
+};
+
 struct ArticleItem {
 	std::string author;
 	std::string content;
@@ -26,6 +39,9 @@ struct ArticlePage {
 };
 
 SectionPage Smth_GetSectionPage( const std::string& htmlText );
+
+BoardPage   Smth_GetBoardPage(   const std::string& htmlText );
+
 ArticlePage Smth_GetArticlePage( const std::string& htmlText );
 
 
