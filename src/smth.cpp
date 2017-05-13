@@ -7,6 +7,7 @@
 #include <locale>
 #include <io.h>
 #include <fcntl.h>
+#include <conio.h>
 
 #include "net_util.h"
 #include "tinyxml2.h"
@@ -174,15 +175,28 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 				else {
 					ArticleItem item;
 
-					std::regex rr( "<div class=\"sp\">(.+?)</div>", std::regex::ECMAScript );
 					std::string mstr = m.str();
-					if (std::regex_search( mstr, um, rr ) ) {
+
+					std::regex r( "<div><a class=\"plant\">(.+?)</div>", std::regex::ECMAScript );
+					if (std::regex_search( mstr, um, r ) ) {
+
+						item.author = Smth_ClearHtmlTags( um.str(1) );
+
+						std::wstring t = Smth_Utf8StringToWString(item.author);
+						const wchar_t* s = t.c_str();
+						wprintf(L"-----------------------------------------------------------------------------\n");
+						wprintf(L"%s\n", s);
+						wprintf(L"-----------------------------------------------------------------------------\n");
+					}
+					r.assign( "<div class=\"sp\">(.+?)</div>", std::regex::ECMAScript );
+					if (std::regex_search( mstr, um, r ) ) {
 
 						item.content = Smth_ReplaceHtmlTags( um.str(1) );
 
 						std::wstring t = Smth_Utf8StringToWString(item.content);
 						const wchar_t* s = t.c_str();
 						wprintf(L"%s\n", s);
+						wprintf(L"-----------------------------------------------------------------------------\n");
 					}
 
 					page.items.push_back( item );
@@ -199,23 +213,6 @@ bool Smth_Init( void )
 {
 	if ( Net_Init() ) {
 		_setmode(_fileno(stdout), _O_U16TEXT);
-
-		std::string result = Net_Get( "m.newsmth.net" );
-		Smth_GetSectionPage( result );
-		wprintf(L"\n");
-		result = Net_Get( "m.newsmth.net/hot/1" );
-		Smth_GetSectionPage( result );
-		wprintf(L"\n");
-		result = Net_Get( "m.newsmth.net/hot/2" );
-		Smth_GetSectionPage( result );
-
-		wprintf(L"\n");
-		result = Net_Get( "http://m.newsmth.net/article/TV/1203776" );
-		Smth_GetArticlePage( result );
-
-
-		
-
 		return true;
 	}
 	return false;
@@ -224,4 +221,46 @@ bool Smth_Init( void )
 void Smth_Deinit( void )
 {
 	Net_Deinit();
+}
+
+void Smth_Update( void )
+{
+	char c = 0;
+	int i = 0;
+	do {
+
+		std::string result;
+		switch ( i ) {
+		case 0:
+			system( "cls" );
+			result = Net_Get( "m.newsmth.net" );
+			Smth_GetSectionPage( result );
+			wprintf(L"\n"); 
+			break;
+		case 1:
+			system( "cls" );
+			result = Net_Get( "m.newsmth.net/hot/1" );
+			Smth_GetSectionPage( result );
+			wprintf(L"\n");
+			break;
+		case 2:
+			system( "cls" );
+			result = Net_Get( "m.newsmth.net/hot/2" );
+			Smth_GetSectionPage( result );
+			wprintf(L"\n");
+			break;
+		case 3:
+			system( "cls" );
+			result = Net_Get( "http://m.newsmth.net/article/AutoTravel/13459460" );
+			Smth_GetArticlePage( result );
+			break;
+
+		default:
+			break;
+		}
+
+		c = _getch();
+		i += 1;
+
+	} while ( c != '!' && c != 3 );
 }
