@@ -8,6 +8,7 @@
 #include <io.h>
 #include <fcntl.h>
 #include <conio.h>
+#include <windows.h>
 
 #include "net_util.h"
 #include "tinyxml2.h"
@@ -30,6 +31,69 @@ static std::string Smth_ClearHtmlTags( const std::string& text )
 		s = pre + suf;
 	}
 	return s;
+}
+
+static void Smth_GotoXY( int x, int y )
+{
+	COORD coord;
+	coord.X = x;
+	coord.Y = y;
+
+	SetConsoleCursorPosition( GetStdHandle( STD_OUTPUT_HANDLE ),  coord );
+}
+
+enum SMTH_KEY {
+	SK_NONE,
+	SK_UP,
+	SK_DOWN,
+	SK_LEFT,
+	SK_RIGHT,
+	SK_ENTER,
+	SK_H,
+	SK_TAB,
+	SK_QUIT,
+	SK_CTRLC,
+};
+
+static int Smth_GetPressedKey( void )
+{
+	static int chars[ 16 ] = {};
+	static int char_count = 0;
+
+	chars[char_count] = _getch();
+	char_count ++;
+
+	if ( char_count == 2 ) {
+		if ( chars[0] == 224 && chars[1] == 72 ) {
+			char_count = 0;
+			return SK_UP;
+		}
+		if ( chars[0] == 224 && chars[1] == 80 ) {
+			char_count = 0;
+			return SK_DOWN;
+		}
+		if ( chars[0] == 224 && chars[1] == 75 ) {
+			char_count = 0;
+			return SK_LEFT;
+		}
+		if ( chars[0] == 224 && chars[1] == 77 ) {
+			char_count = 0;
+			return SK_RIGHT;
+		}
+	}
+	else if ( char_count == 1 ) {
+		if ( chars[0] != 224  ) {
+			char_count = 0; 
+
+			if ( chars[0] == 'H' ) return SK_H;
+			if ( chars[0] == '!' ) return SK_QUIT;
+			if ( chars[0] == 3 ) return SK_CTRLC;
+			if ( chars[0] == 9 ) return SK_TAB;
+		}
+	}
+
+
+	return SK_NONE;
 }
 
 std::wstring Smth_Utf8StringToWString( const std::string& text )
@@ -265,8 +329,14 @@ void Smth_Deinit( void )
 
 void Smth_Update( void )
 {
-	char c = 0;
+	int c = 0;
 	int i = 0;
+
+	int curX = 0;
+	int curY = 0;
+
+	bool quit = false;
+
 	do {
 
 		std::string result;
@@ -275,12 +345,14 @@ void Smth_Update( void )
 			system( "cls" );
 			result = Net_Get( "m.newsmth.net" );
 			Smth_GetSectionPage( result );
+			Smth_GotoXY( curX, curY );
 			wprintf(L"\n"); 
 			break;
 		case 1:
 			system( "cls" );
 			result = Net_Get( "m.newsmth.net/hot/1" );
 			Smth_GetSectionPage( result );
+			Smth_GotoXY( curX, curY );
 			wprintf(L"\n");
 			break;
 		case 2:
@@ -305,9 +377,35 @@ void Smth_Update( void )
 			break;
 		}
 
-		c = _getch();
-		i += 1;
-		i = i % 5;
+		c = Smth_GetPressedKey();
+		switch( c ) {
+		case SK_H:
+			i = 0;
+			break;
+		case SK_UP:
+			curY -= 1;
+			break;
+		case SK_DOWN:
+			curY += 1;
+			break;
+		case SK_LEFT:
+			curX -= 1;
+			break;
+		case SK_RIGHT:
+			curX += 1;
+			break;
+		case SK_TAB:
+			i += 1;
+			i = i % 5;
+			break;
+		case SK_QUIT:
+		case SK_CTRLC:
+			quit = true;
+			break;
+		default:
+			i = -1;
+			break;
+		}
 
-	} while ( c != '!' && c != 3 );
+	} while ( !quit );
 }
