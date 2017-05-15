@@ -40,8 +40,8 @@ static void Smth_GotoXY( int x, int y )
 	if ( x < 0 || y < 0 ) return;
 
 	COORD coord;
-	coord.X = x;
-	coord.Y = y;
+	coord.X = (SHORT)x;
+	coord.Y = (SHORT)y;
 
 	SetConsoleCursorPosition( GetStdHandle( STD_OUTPUT_HANDLE ),  coord );
 
@@ -74,6 +74,7 @@ static bool Smth_GetCursorXY( int& x, int& y )
 	return false;
 }
 
+#if 0
 static bool Smth_GetConsoleSize( int& columns, int& rows )
 {
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -82,6 +83,7 @@ static bool Smth_GetConsoleSize( int& columns, int& rows )
 	columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 	rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 }
+#endif
 
 enum SMTH_KEY {
 	SK_NONE,
@@ -143,14 +145,15 @@ std::wstring Smth_Utf8StringToWString( const std::string& text )
 	return converter.from_bytes( text );
 }
 
+#if 0
 static std::wstring Smth_ClearMetaTag( const std::wstring& text )
 {
 	std::wstring s = text;
 	while ( true ) {
-		int index = s.find( L"<meta" );
+		size_t index = s.find( L"<meta" );
 		if ( index != std::wstring::npos ) {
 
-			int end = s.find( L">", index );
+			size_t end = s.find( L">", index );
 			assert( end != std::wstring::npos );
 
 			s = s.substr( 0, index ) + s.substr( end + 1, s.length() - end - 1 );
@@ -163,6 +166,7 @@ static std::wstring Smth_ClearMetaTag( const std::wstring& text )
 
 	return s;
 }
+#endif
 
 static std::string Smth_ReplaceHtmlTags( const std::string& text )
 {
@@ -183,10 +187,10 @@ static std::string Smth_ReplaceHtmlTags( const std::string& text )
 
 	for ( int i = 0; i < count; ++i ) {
 		while ( true ) {
-			int index = s.find( tags[i].src );
+			size_t index = s.find( tags[i].src );
 			if ( index != std::string::npos ) {
 
-				int len = strlen( tags[i].src );
+				size_t len = strlen( tags[i].src );
 
 				s = s.replace( index, len, tags[i].dst );
 
@@ -272,9 +276,9 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 
 	const char* beginTag = "<ul class=\"slist sec\">";
 	const char* endTag = "</ul>";
-	int index = htmlText.find( beginTag );
+	size_t index = htmlText.find( beginTag );
 	if ( index != std::string::npos ) {
-		int end = htmlText.find( endTag, index + 1 );
+		size_t end = htmlText.find( endTag, index + 1 );
 		if ( end != std::string::npos ) {
 			
 			std::string titleText = htmlText.substr( index, end - index );
@@ -292,7 +296,7 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 					TitleItem item;
 					//std::regex rr( "<a href=\"(.*?)\">(.+?)(\\(.*?\\))</a>", std::regex::ECMAScript );
 					std::regex rr( "<a href=\"(.*?)\">(.+?)</a>", std::regex::ECMAScript );
-					std::string mstr = m.str();
+					mstr = m.str();
 					if (std::regex_search( mstr, um, rr ) ) {
 						item.url   = um.str(1);
 						item.title = Smth_ClearHtmlTags( um.str(2) );
@@ -314,9 +318,9 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 
 	const char* beginTag = "<ul class=\"list sec\">";
 	const char* endTag = "</ul>";
-	int index = htmlText.find( beginTag );
+	size_t index = htmlText.find( beginTag );
 	if ( index != std::string::npos ) {
-		int end = htmlText.find( endTag, index + 1 );
+		size_t end = htmlText.find( endTag, index + 1 );
 		if ( end != std::string::npos ) {
 			
 			std::string titleText = htmlText.substr( index, end - index );
@@ -327,7 +331,7 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 				std::smatch um;
 				std::string mstr = m.str();
 				BoardItem item;
-				std::regex r( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
+				r.assign( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
 				if (std::regex_search( mstr, um, r ) ) {
 					item.url   = um.str(1);
 					item.title = Smth_ClearHtmlTags( um.str(2) );
@@ -345,9 +349,9 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 
 	const char* beginTag = "<ul class=\"list sec\">";
 	const char* endTag = "</ul>";
-	int index = htmlText.find( beginTag );
+	size_t index = htmlText.find( beginTag );
 	if ( index != std::string::npos ) {
-		int end = htmlText.find( endTag, index + 1 );
+		size_t end = htmlText.find( endTag, index + 1 );
 		if ( end != std::string::npos ) {
 			std::string titleText = htmlText.substr( index, end - index );
 			//
@@ -362,8 +366,8 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 				}
 				else {
 					ArticleItem item;
-					std::string mstr = m.str();
-					std::regex r( "<div><a class=\"plant\">(.+?)</div>", std::regex::ECMAScript );
+					mstr = m.str();
+					r.assign( "<div><a class=\"plant\">(.+?)</div>", std::regex::ECMAScript );
 					if (std::regex_search( mstr, um, r ) ) {
 						item.author = Smth_ClearHtmlTags( um.str(1) );
 					}
@@ -382,10 +386,10 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 
 static std::string Smth_GetUrlCategory( const std::string& fullUrl )
 {
-	int index = fullUrl.find( SMTH_DOMAIN );
+	size_t index = fullUrl.find( SMTH_DOMAIN );
 	if ( index != std::string::npos ) {
-		int begin = index + SMTH_DOMAIN.length() + 1;
-		int end = fullUrl.find( "/", begin );
+		size_t begin = index + SMTH_DOMAIN.length() + 1;
+		size_t end = fullUrl.find( "/", begin );
 		if ( end != std::string::npos ) {
 			return fullUrl.substr( begin, end - begin );
 		}
@@ -436,9 +440,6 @@ void Smth_Update( void )
 	int c = 0;
 	int i = 0;
 
-	int curX = 0;
-	int curY = 0;
-
 	bool quit = false;
 
 	LinkPositionState linkState;
@@ -487,11 +488,8 @@ void Smth_Update( void )
 			linkState.NextPos();
 			break;
 		case SK_LEFT:
-			curX -= 1;
-			if ( curX < 0 ) curX = 0;
 			break;
 		case SK_RIGHT:
-			curX += 1;
 			break;
 		case SK_TAB:
 			i += 1;
