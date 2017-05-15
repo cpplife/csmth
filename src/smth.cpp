@@ -204,6 +204,35 @@ static std::string Smth_ReplaceHtmlTags( const std::string& text )
 	return s;
 }
 
+static std::vector<std::string> Smth_ExtractImgUrl( const std::string& text )
+{
+	std::vector<std::string> vec;
+
+	std::string t = text;
+	std::smatch m;
+	std::regex r( "<img .+? src=\"(.+?)/middle\".*?/>", std::regex::ECMAScript );
+	while ( std::regex_search( t, m, r ) ) {
+
+		std::string imgUrl = m.str(1);
+		vec.push_back( imgUrl );
+
+		t = m.suffix();
+	}
+
+	return vec;
+}
+
+static std::string Smth_ProcessArticleContent( const std::string& text )
+{
+	std::string s = Smth_ReplaceHtmlTags( text );
+	std::vector<std::string> urls = Smth_ExtractImgUrl( s );
+	s = Smth_ClearHtmlTags( s );
+	for ( size_t i = 0; i < urls.size(); ++i ) {
+		s += urls[i] + "\n";
+	}
+	return s;
+}
+
 void Smth_OutputSectionPage( const SectionPage& page, LinkPositionState* state )
 {
 	std::wstring s = Smth_Utf8StringToWString(page.name);
@@ -296,8 +325,8 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 					TitleItem item;
 					//std::regex rr( "<a href=\"(.*?)\">(.+?)(\\(.*?\\))</a>", std::regex::ECMAScript );
 					std::regex rr( "<a href=\"(.*?)\">(.+?)</a>", std::regex::ECMAScript );
-					mstr = m.str();
-					if (std::regex_search( mstr, um, rr ) ) {
+					std::string tt = m.str();
+					if (std::regex_search( tt, um, rr ) ) {
 						item.url   = um.str(1);
 						item.title = Smth_ClearHtmlTags( um.str(2) );
 
@@ -366,14 +395,15 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 				}
 				else {
 					ArticleItem item;
-					mstr = m.str();
-					r.assign( "<div><a class=\"plant\">(.+?)</div>", std::regex::ECMAScript );
-					if (std::regex_search( mstr, um, r ) ) {
+					std::string tt = m.str();
+					std::regex rr( "<div><a class=\"plant\">(.+?)</div>", std::regex::ECMAScript );
+					if (std::regex_search( tt, um, rr ) ) {
 						item.author = Smth_ClearHtmlTags( um.str(1) );
 					}
-					r.assign( "<div class=\"sp\">(.+?)</div>", std::regex::ECMAScript );
-					if (std::regex_search( mstr, um, r ) ) {
-						item.content = Smth_ReplaceHtmlTags( um.str(1) );
+					rr.assign( "<div class=\"sp\">(.+?)</div>", std::regex::ECMAScript );
+					if (std::regex_search( tt, um, rr ) ) {
+						//item.content = Smth_ReplaceHtmlTags( um.str(1) );
+						item.content = Smth_ProcessArticleContent( um.str(1) );
 					}
 					page.items.push_back( item );
 				}
@@ -463,7 +493,7 @@ void Smth_Update( void )
 			break;
 		case 4:
 			system( "cls" );
-			Smth_GotoUrl( "http://m.newsmth.net/article/AutoTravel/13459460", &linkState );
+			Smth_GotoUrl( "http://m.newsmth.net/article/Picture/1659069", &linkState );
 			break;
 		case 0xFF:
 			Smth_GotoUrl( linkState.Url(), &linkState );
