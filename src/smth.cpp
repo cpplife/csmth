@@ -64,25 +64,24 @@ static int Smth_GetPressedKey( void )
 	char_count ++;
 
 	if ( char_count == 2 ) {
-		if ( chars[0] == 224 && chars[1] == 72 ) {
+		if ( chars[0] == 224 ) {
 			char_count = 0;
-			return SK_UP;
-		}
-		if ( chars[0] == 224 && chars[1] == 80 ) {
-			char_count = 0;
-			return SK_DOWN;
-		}
-		if ( chars[0] == 224 && chars[1] == 75 ) {
-			char_count = 0;
-			return SK_LEFT;
-		}
-		if ( chars[0] == 224 && chars[1] == 77 ) {
-			char_count = 0;
-			return SK_RIGHT;
+			if ( chars[1] == 72 ) {
+				return SK_UP;
+			}
+			if ( chars[1] == 80 ) {
+				return SK_DOWN;
+			}
+			if ( chars[1] == 75 ) {
+				return SK_LEFT;
+			}
+			if ( chars[1] == 77 ) {
+				return SK_RIGHT;
+			}
 		}
 	}
 	else if ( char_count == 1 ) {
-		if ( chars[0] != 224  ) {
+		if ( chars[0] != 224 && chars[0] != 0 ) {
 			char_count = 0; 
 
 			if ( chars[0] == 'H' ) return SK_H;
@@ -338,21 +337,19 @@ void Smth_Update( void )
 	bool quit = false;
 
 	do {
-
+		Smth_GotoXY( curX, curY );
 		std::string result;
 		switch ( i ) {
 		case 0:
 			system( "cls" );
 			result = Net_Get( "m.newsmth.net" );
 			Smth_GetSectionPage( result );
-			Smth_GotoXY( curX, curY );
 			wprintf(L"\n"); 
 			break;
 		case 1:
 			system( "cls" );
 			result = Net_Get( "m.newsmth.net/hot/1" );
 			Smth_GetSectionPage( result );
-			Smth_GotoXY( curX, curY );
 			wprintf(L"\n");
 			break;
 		case 2:
