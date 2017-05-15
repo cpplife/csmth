@@ -18,6 +18,8 @@
 static struct {
 } gsSmth;
 
+static const std::string SMTH_DOMAIN = "m.newsmth.net";
+
 
 static std::string Smth_ClearHtmlTags( const std::string& text )
 {
@@ -35,11 +37,50 @@ static std::string Smth_ClearHtmlTags( const std::string& text )
 
 static void Smth_GotoXY( int x, int y )
 {
+	if ( x < 0 || y < 0 ) return;
+
 	COORD coord;
 	coord.X = x;
 	coord.Y = y;
 
 	SetConsoleCursorPosition( GetStdHandle( STD_OUTPUT_HANDLE ),  coord );
+
+}
+
+static void Smth_SetPosMarker( int x, int y )
+{
+	Smth_GotoXY( x, y );
+	wprintf( L">");
+}
+
+static void Smth_ClearPosMarker( int x, int y )
+{
+	Smth_GotoXY( x, y );
+	wprintf( L" ");
+}
+
+static bool Smth_GetCursorXY( int& x, int& y )
+{
+	x = -1; y = -1;
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+	if ( GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi) ) {
+
+		x = csbi.dwCursorPosition.X;
+		y = csbi.dwCursorPosition.Y;
+
+		return true;
+	}
+	return false;
+}
+
+static bool Smth_GetConsoleSize( int& columns, int& rows )
+{
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+	columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+	rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 }
 
 enum SMTH_KEY {
@@ -85,6 +126,7 @@ static int Smth_GetPressedKey( void )
 			char_count = 0; 
 
 			if ( chars[0] == 'H' ) return SK_H;
+			if ( chars[0] == 0xD ) return SK_ENTER;
 			if ( chars[0] == '!' ) return SK_QUIT;
 			if ( chars[0] == 3 ) return SK_CTRLC;
 			if ( chars[0] == 9 ) return SK_TAB;
@@ -158,6 +200,72 @@ static std::string Smth_ReplaceHtmlTags( const std::string& text )
 	return s;
 }
 
+void Smth_OutputSectionPage( const SectionPage& page, LinkPositionState* state )
+{
+	std::wstring s = Smth_Utf8StringToWString(page.name);
+	wprintf( L"=== %s ===\n", s.c_str() );
+
+	for ( size_t i = 0; i < page.items.size(); ++i ) {
+		s = Smth_Utf8StringToWString(page.items[i].title);
+		int x, y;
+		Smth_GetCursorXY( x, y );
+		wprintf( L"  %s\n", s.c_str() );
+		if ( state != nullptr && x >= 0 && y >= 0 ) {
+			state->Append( x, y, SMTH_DOMAIN + page.items[i].url );
+			state->posIndex = 0;
+		}
+	}
+
+}
+
+void Smth_OutputBoardPage( const BoardPage& page, LinkPositionState* state )
+{
+	std::wstring s = Smth_Utf8StringToWString(page.name_cn);
+	std::wstring t = Smth_Utf8StringToWString(page.name_en);
+	wprintf( L"=== %s(%s) ===\n", s.c_str(), t.c_str() );
+
+	for ( size_t i = 0; i < page.items.size(); ++i ) {
+		size_t index = page.items.size() - 1 - i;
+		s = Smth_Utf8StringToWString(page.items[index].title);
+		int x, y;
+		Smth_GetCursorXY( x, y );
+		wprintf( L"  %s\n", s.c_str() );
+
+		if ( state != nullptr && x >= 0 && y >= 0 ) {
+			state->Append( x, y, SMTH_DOMAIN + page.items[index].url );
+			state->posIndex = 0;
+		}
+	}
+}
+
+void Smth_OutputArticlePage( const ArticlePage& page, LinkPositionState* state )
+{
+	std::wstring s = Smth_Utf8StringToWString(page.name);
+	wprintf( L"=== %s ===\n", s.c_str() );
+	int x, y;
+	for ( size_t i = 0; i < page.items.size(); ++i ) {
+		s = Smth_Utf8StringToWString(page.items[i].author);
+		wprintf( L"-----------------------------------------------------------------------------\n" );
+		Smth_GetCursorXY( x, y );
+		wprintf( L"  %s\n", s.c_str() );
+		wprintf( L"-----------------------------------------------------------------------------\n" );
+		s = Smth_Utf8StringToWString(page.items[i].content);
+		wprintf( L"%s\n", s.c_str() );
+		wprintf( L"-----------------------------------------------------------------------------\n" );
+
+		if ( state != nullptr && x >= 0 && y >= 0 ) {
+			state->Append( x, y, SMTH_DOMAIN );
+			state->posIndex = 0;
+		}
+	}
+	// Added last line as the pos, so we can see last text when move cursor.
+	Smth_GetCursorXY( x, y );
+	if ( state != nullptr && x >= 0 && y >= 0 ) {
+		state->Append( x, y, SMTH_DOMAIN );
+		state->posIndex = 0;
+	}
+}
+
 SectionPage Smth_GetSectionPage( const std::string& htmlText )
 {
 	SectionPage page;
@@ -174,19 +282,14 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 			std::smatch m;
 			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
 			while ( std::regex_search( titleText, m, r ) ) {
-
 				std::smatch um;
-
 				std::regex title( "<li class=\"f\">(.*?)</li>", std::regex::ECMAScript );
 				std::string mstr = m.str();
 				if (std::regex_search( mstr, um, title ) ) {
 					page.name = um.str(1);
-					std::wstring t = Smth_Utf8StringToWString(page.name);
-					wprintf(L"=== %s ===\n", t.c_str() );
 				}
 				else {
 					TitleItem item;
-
 					//std::regex rr( "<a href=\"(.*?)\">(.+?)(\\(.*?\\))</a>", std::regex::ECMAScript );
 					std::regex rr( "<a href=\"(.*?)\">(.+?)</a>", std::regex::ECMAScript );
 					std::string mstr = m.str();
@@ -194,12 +297,8 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 						item.url   = um.str(1);
 						item.title = Smth_ClearHtmlTags( um.str(2) );
 
-						std::wstring t = Smth_Utf8StringToWString(item.title);
-						const wchar_t* s = t.c_str();
-						wprintf(L"%s\n", s);
+						page.items.push_back( item );
 					}
-
-					page.items.push_back( item );
 				}
 
 				titleText = m.suffix();
@@ -225,24 +324,15 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 			std::smatch m;
 			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
 			while ( std::regex_search( titleText, m, r ) ) {
-
 				std::smatch um;
-
 				std::string mstr = m.str();
 				BoardItem item;
-
 				std::regex r( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
 				if (std::regex_search( mstr, um, r ) ) {
 					item.url   = um.str(1);
 					item.title = Smth_ClearHtmlTags( um.str(2) );
-
-					std::wstring t = Smth_Utf8StringToWString(item.title);
-					const wchar_t* s = t.c_str();
-					wprintf(L"%s\n", s);
 				}
-
 				page.items.push_back( item );
-
 				titleText = m.suffix();
 			}
 		}
@@ -259,57 +349,72 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 	if ( index != std::string::npos ) {
 		int end = htmlText.find( endTag, index + 1 );
 		if ( end != std::string::npos ) {
-			
 			std::string titleText = htmlText.substr( index, end - index );
 			//
 			std::smatch m;
 			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
 			while ( std::regex_search( titleText, m, r ) ) {
-
 				std::smatch um;
-
 				std::regex title( "<li class=\"f\">(.*?)</li>", std::regex::ECMAScript );
 				std::string mstr = m.str();
 				if (std::regex_search( mstr, um, title ) ) {
 					page.name = um.str(1);
-					std::wstring t = Smth_Utf8StringToWString(page.name);
-					wprintf(L"=== %s ===\n", t.c_str() );
 				}
 				else {
 					ArticleItem item;
-
 					std::string mstr = m.str();
-
 					std::regex r( "<div><a class=\"plant\">(.+?)</div>", std::regex::ECMAScript );
 					if (std::regex_search( mstr, um, r ) ) {
-
 						item.author = Smth_ClearHtmlTags( um.str(1) );
-
-						std::wstring t = Smth_Utf8StringToWString(item.author);
-						const wchar_t* s = t.c_str();
-						wprintf(L"-----------------------------------------------------------------------------\n");
-						wprintf(L"%s\n", s);
-						wprintf(L"-----------------------------------------------------------------------------\n");
 					}
 					r.assign( "<div class=\"sp\">(.+?)</div>", std::regex::ECMAScript );
 					if (std::regex_search( mstr, um, r ) ) {
-
 						item.content = Smth_ReplaceHtmlTags( um.str(1) );
-
-						std::wstring t = Smth_Utf8StringToWString(item.content);
-						const wchar_t* s = t.c_str();
-						wprintf(L"%s\n", s);
-						wprintf(L"-----------------------------------------------------------------------------\n");
 					}
-
 					page.items.push_back( item );
 				}
-
 				titleText = m.suffix();
 			}
 		}
 	}
 	return page;
+}
+
+static std::string Smth_GetUrlCategory( const std::string& fullUrl )
+{
+	int index = fullUrl.find( SMTH_DOMAIN );
+	if ( index != std::string::npos ) {
+		int begin = index + SMTH_DOMAIN.length() + 1;
+		int end = fullUrl.find( "/", begin );
+		if ( end != std::string::npos ) {
+			return fullUrl.substr( begin, end - begin );
+		}
+	}
+	return "";
+}
+
+static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=nullptr )
+{
+	system( "cls" );
+	std::string cat = Smth_GetUrlCategory( fullUrl );
+	std::string result;
+
+	if ( state != nullptr ) {
+		state->Clear();
+	}
+
+	if ( cat == "board" ) { 
+		result = Net_Get( fullUrl );
+		Smth_OutputBoardPage( Smth_GetBoardPage( result ), state );
+	}
+	else if ( cat == "article" ) { 
+		result = Net_Get( fullUrl );
+		Smth_OutputArticlePage( Smth_GetArticlePage( result ), state );
+	}
+	else {
+		result = Net_Get( fullUrl );
+		Smth_OutputSectionPage( Smth_GetSectionPage( result ), state );
+	}
 }
 
 bool Smth_Init( void )
@@ -336,43 +441,37 @@ void Smth_Update( void )
 
 	bool quit = false;
 
+	LinkPositionState linkState;
+
 	do {
-		Smth_GotoXY( curX, curY );
 		std::string result;
 		switch ( i ) {
 		case 0:
-			system( "cls" );
-			result = Net_Get( "m.newsmth.net" );
-			Smth_GetSectionPage( result );
-			wprintf(L"\n"); 
+			Smth_GotoUrl( "m.newsmth.net", &linkState );
 			break;
 		case 1:
-			system( "cls" );
-			result = Net_Get( "m.newsmth.net/hot/1" );
-			Smth_GetSectionPage( result );
-			wprintf(L"\n");
+			Smth_GotoUrl( "m.newsmth.net/hot/1", &linkState );
 			break;
 		case 2:
-			system( "cls" );
-			result = Net_Get( "m.newsmth.net/hot/2" );
-			Smth_GetSectionPage( result );
+			Smth_GotoUrl( "m.newsmth.net/hot/1", &linkState );
 			wprintf(L"\n");
 			break;
 		case 3:
-			system( "cls" );
-			result = Net_Get( "http://m.newsmth.net/board/AutoTravel" );
-			Smth_GetBoardPage( result );
+			Smth_GotoUrl( "http://m.newsmth.net/board/Universal", &linkState );
 			wprintf(L"\n");
 			break;
 		case 4:
 			system( "cls" );
-			result = Net_Get( "http://m.newsmth.net/article/AutoTravel/13459460" );
-			Smth_GetArticlePage( result );
+			Smth_GotoUrl( "http://m.newsmth.net/article/AutoTravel/13459460", &linkState );
 			break;
-
+		case 0xFF:
+			Smth_GotoUrl( linkState.Url(), &linkState );
+			break;
 		default:
 			break;
 		}
+
+		Smth_SetPosMarker( linkState.PosX(), linkState.PosY() );
 
 		c = Smth_GetPressedKey();
 		switch( c ) {
@@ -380,13 +479,16 @@ void Smth_Update( void )
 			i = 0;
 			break;
 		case SK_UP:
-			curY -= 1;
+			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
+			linkState.PrevPos();
 			break;
 		case SK_DOWN:
-			curY += 1;
+			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
+			linkState.NextPos();
 			break;
 		case SK_LEFT:
 			curX -= 1;
+			if ( curX < 0 ) curX = 0;
 			break;
 		case SK_RIGHT:
 			curX += 1;
@@ -398,6 +500,11 @@ void Smth_Update( void )
 		case SK_QUIT:
 		case SK_CTRLC:
 			quit = true;
+			break;
+		case SK_ENTER:
+			if ( linkState.posIndex >= 0 ) {
+				i = 0xFF;
+			}
 			break;
 		default:
 			i = -1;
