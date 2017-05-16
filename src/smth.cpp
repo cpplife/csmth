@@ -236,7 +236,7 @@ static std::string Smth_ProcessArticleContent( const std::string& text )
 void Smth_OutputSectionPage( const SectionPage& page, LinkPositionState* state )
 {
 	std::wstring s = Smth_Utf8StringToWString(page.name);
-	wprintf( L"=== %s ===\n", s.c_str() );
+	wprintf( L"  === %s ===\n", s.c_str() );
 
 	for ( size_t i = 0; i < page.items.size(); ++i ) {
 		s = Smth_Utf8StringToWString(page.items[i].title);
@@ -255,7 +255,7 @@ void Smth_OutputBoardPage( const BoardPage& page, LinkPositionState* state )
 {
 	std::wstring s = Smth_Utf8StringToWString(page.name_cn);
 	std::wstring t = Smth_Utf8StringToWString(page.name_en);
-	wprintf( L"=== %s(%s) ===\n", s.c_str(), t.c_str() );
+	wprintf( L"  === %s(%s) ===\n", s.c_str(), t.c_str() );
 
 	for ( size_t i = 0; i < page.items.size(); ++i ) {
 		size_t index = page.items.size() - 1 - i;
@@ -274,17 +274,17 @@ void Smth_OutputBoardPage( const BoardPage& page, LinkPositionState* state )
 void Smth_OutputArticlePage( const ArticlePage& page, LinkPositionState* state )
 {
 	std::wstring s = Smth_Utf8StringToWString(page.name);
-	wprintf( L"=== %s ===\n", s.c_str() );
+	wprintf( L"  === %s ===\n", s.c_str() );
 	int x, y;
 	for ( size_t i = 0; i < page.items.size(); ++i ) {
 		s = Smth_Utf8StringToWString(page.items[i].author);
-		wprintf( L"-----------------------------------------------------------------------------\n" );
+		wprintf( L"--------------------------------------------\n" );
 		Smth_GetCursorXY( x, y );
 		wprintf( L"  %s\n", s.c_str() );
-		wprintf( L"-----------------------------------------------------------------------------\n" );
+		wprintf( L"--------------------------------------------\n" );
 		s = Smth_Utf8StringToWString(page.items[i].content);
 		wprintf( L"%s\n", s.c_str() );
-		wprintf( L"-----------------------------------------------------------------------------\n" );
+		wprintf( L"--------------------------------------------\n" );
 
 		if ( state != nullptr && x >= 0 && y >= 0 ) {
 			state->Append( x, y, SMTH_DOMAIN );
