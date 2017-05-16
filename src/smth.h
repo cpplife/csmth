@@ -34,7 +34,10 @@ struct ArticleItem {
 };
 
 struct ArticlePage {
+	std::string boardName;
 	std::string name;
+	size_t pageIndex;
+	size_t pageCount;
 	std::vector<ArticleItem> items;
 };
 
@@ -75,14 +78,14 @@ struct LinkPositionState {
 	void NextPos() {
 		posIndex++;
 		if ( posIndex >= (int)linkPositions.size() ) {
-			posIndex = 0;
+			posIndex = (int)linkPositions.size() - 1;
 		}
 	}
 
 	void PrevPos() {
 		posIndex--;
 		if ( posIndex < 0 ) {
-			posIndex = (int)(linkPositions.size() - 1);
+			posIndex = 0;
 		}
 	}
 

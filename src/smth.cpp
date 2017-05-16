@@ -5,6 +5,7 @@
 #include <cwchar>
 #include <codecvt>
 #include <locale>
+#include <stack>
 #include <io.h>
 #include <fcntl.h>
 #include <conio.h>
@@ -15,10 +16,37 @@
 #include "smth.h"
 
 
+static const char* SMTH_HOMEPAGES[] = {
+	"m.newsmth.net",
+	"m.newsmth.net/hot/1",
+	"m.newsmth.net/hot/2",
+	"m.newsmth.net/hot/3",
+	"m.newsmth.net/hot/4",
+	"m.newsmth.net/hot/5",
+	"m.newsmth.net/hot/6",
+	"m.newsmth.net/hot/7",
+	"m.newsmth.net/hot/8",
+	"m.newsmth.net/hot/9",
+};
+
+static const int SMTH_HOMEPAGE_COUNT = sizeof(SMTH_HOMEPAGES)/sizeof(SMTH_HOMEPAGES[0]);
+
 static struct {
+	std::stack<std::string> urlStack;
 } gsSmth;
 
 static const std::string SMTH_DOMAIN = "m.newsmth.net";
+
+
+static int Smth_GetHomePageIndex( const std::string& url )
+{
+	for ( int i = 0; i < SMTH_HOMEPAGE_COUNT; ++i ) {
+		if ( url == SMTH_HOMEPAGES[i] ) {
+			return i;
+		}
+	}
+	return -1;
+}
 
 
 static std::string Smth_ClearHtmlTags( const std::string& text )
@@ -138,6 +166,53 @@ static int Smth_GetPressedKey( void )
 
 	return SK_NONE;
 }
+
+static int Smth_CheckPressedKey( void ) {
+	INPUT_RECORD record;
+	DWORD recNum;
+	if ( ReadConsoleInput( GetStdHandle(STD_INPUT_HANDLE), &record, 1, &recNum ) ) {
+		if ( record.EventType == KEY_EVENT && record.Event.KeyEvent.bKeyDown ) {
+			WORD key = record.Event.KeyEvent.wVirtualKeyCode;
+			bool ctrlPressed = ( (record.Event.KeyEvent.dwControlKeyState) & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
+			bool altPressed = ( (record.Event.KeyEvent.dwControlKeyState) & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
+			bool capsOn = ( (record.Event.KeyEvent.dwControlKeyState) & (CAPSLOCK_ON)) != 0;
+			bool shiftPressed = ( (record.Event.KeyEvent.dwControlKeyState) & (SHIFT_PRESSED)) != 0;
+
+			if ( !ctrlPressed && !altPressed ) {
+				if ( key == 0x48 && ( (!capsOn && shiftPressed) || (capsOn && !shiftPressed) ) ) {
+					return SK_H;
+				}
+				if ( key == VK_RETURN ) {
+					return SK_ENTER;
+				}
+				if ( key == VK_TAB ) {
+					return SK_TAB;
+				}
+				if ( key == VK_UP ) {
+					return SK_UP;
+				}
+				if ( key == VK_DOWN ) {
+					return SK_DOWN;
+				}
+				if ( key == VK_LEFT ) {
+					return SK_LEFT;
+				}
+				if ( key == VK_RIGHT ) {
+					return SK_RIGHT;
+				}
+				if ( key == 0x31 && shiftPressed ) { // ! key
+					return SK_QUIT;
+				}
+				if ( key == 0x43 && ctrlPressed ) { // ctrl c
+					return SK_QUIT;
+				}
+			}
+		}
+	}
+
+	return SK_NONE;
+
+};
 
 std::wstring Smth_Utf8StringToWString( const std::string& text )
 {
@@ -376,6 +451,21 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 {
 	ArticlePage page;
 
+
+	// Get the board name
+	std::smatch m;
+	std::regex r( "<div class=\"menu sp\">.*?</a>\\|(.*?)</div>", std::regex::ECMAScript );
+	if ( std::regex_search( htmlText, m, r ) ) {
+		page.boardName = m.str(1);
+	}
+	// Get page count.
+	r.assign( "<form action.+</a>\\|<a class=\"plant\">(\\d+)/(\\d+)</a>", std::regex::ECMAScript );
+	if ( std::regex_search( htmlText, m, r ) ) {
+		page.pageIndex = std::stoi( m.str(1) );
+		page.pageCount = std::stoi( m.str(2) );
+	}
+
+
 	const char* beginTag = "<ul class=\"list sec\">";
 	const char* endTag = "</ul>";
 	size_t index = htmlText.find( beginTag );
@@ -384,8 +474,7 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 		if ( end != std::string::npos ) {
 			std::string titleText = htmlText.substr( index, end - index );
 			//
-			std::smatch m;
-			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
+			r.assign( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
 			while ( std::regex_search( titleText, m, r ) ) {
 				std::smatch um;
 				std::regex title( "<li class=\"f\">(.*?)</li>", std::regex::ECMAScript );
@@ -449,12 +538,15 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 		result = Net_Get( fullUrl );
 		Smth_OutputSectionPage( Smth_GetSectionPage( result ), state );
 	}
+
+	gsSmth.urlStack.push( fullUrl );
 }
 
 bool Smth_Init( void )
 {
 	if ( Net_Init() ) {
 		_setmode(_fileno(stdout), _O_U16TEXT);
+
 		return true;
 	}
 	return false;
@@ -468,35 +560,40 @@ void Smth_Deinit( void )
 void Smth_Update( void )
 {
 	int c = 0;
-	int i = 0;
 
 	bool quit = false;
-
+	int i = 0;
 	LinkPositionState linkState;
 
 	do {
 		std::string result;
+
+		std::string curUrl = gsSmth.urlStack.size() > 0 ? gsSmth.urlStack.top() : SMTH_HOMEPAGES[0];
+
 		switch ( i ) {
 		case 0:
-			Smth_GotoUrl( "m.newsmth.net", &linkState );
-			break;
 		case 1:
-			Smth_GotoUrl( "m.newsmth.net/hot/1", &linkState );
-			break;
 		case 2:
-			Smth_GotoUrl( "m.newsmth.net/hot/1", &linkState );
-			wprintf(L"\n");
-			break;
 		case 3:
-			Smth_GotoUrl( "http://m.newsmth.net/board/Universal", &linkState );
-			wprintf(L"\n");
-			break;
 		case 4:
-			system( "cls" );
-			Smth_GotoUrl( "http://m.newsmth.net/article/Picture/1659069", &linkState );
+		case 5:
+		case 6:
+		case 7:
+		case 8:
+		case 9:
+			Smth_GotoUrl( SMTH_HOMEPAGES[i], &linkState );
+			break;
+		case 33:
+			Smth_GotoUrl( "m.newsmth.net/board/Universal", &linkState );
+			break;
+		case 44:
+			Smth_GotoUrl( "m.newsmth.net/article/Picture/1659069", &linkState );
 			break;
 		case 0xFF:
 			Smth_GotoUrl( linkState.Url(), &linkState );
+			break;
+		case 0xEE:
+			Smth_GotoUrl( curUrl, &linkState );
 			break;
 		default:
 			break;
@@ -504,7 +601,7 @@ void Smth_Update( void )
 
 		Smth_SetPosMarker( linkState.PosX(), linkState.PosY() );
 
-		c = Smth_GetPressedKey();
+		c = Smth_CheckPressedKey();
 		switch( c ) {
 		case SK_H:
 			i = 0;
@@ -518,12 +615,23 @@ void Smth_Update( void )
 			linkState.NextPos();
 			break;
 		case SK_LEFT:
+			{
+				if ( gsSmth.urlStack.size() > 1 ) {
+					gsSmth.urlStack.pop();
+					i = 0xEE;
+				}
+			}
 			break;
 		case SK_RIGHT:
 			break;
 		case SK_TAB:
-			i += 1;
-			i = i % 5;
+			{
+				int index = Smth_GetHomePageIndex( curUrl );
+				if ( index != -1 ) {
+					i = index + 1;
+					i = i % 10;
+				}
+			}
 			break;
 		case SK_QUIT:
 		case SK_CTRLC:
