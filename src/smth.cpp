@@ -33,9 +33,20 @@ static const char* SMTH_HOMEPAGES[] = {
 
 static const int SMTH_HOMEPAGE_COUNT = sizeof(SMTH_HOMEPAGES)/sizeof(SMTH_HOMEPAGES[0]);
 
-static struct {
+static struct SmthModule {
 	std::stack<std::string> urlStack;
 	std::string gotoUrl;
+
+	ArticlePage article;
+	BoardPage   board;
+	SectionPage section;
+
+	// Added class name and ctor/dtor to avoid compiling error (c2280 in windows)
+	SmthModule() {
+	}
+	~SmthModule() {
+	}
+
 } gsSmth;
 
 static const std::string SMTH_DOMAIN = "m.newsmth.net";
@@ -127,6 +138,8 @@ enum SMTH_KEY {
 	SK_TAB,
 	SK_QUIT,
 	SK_CTRLC,
+	SK_NEXTPAGE,
+	SK_PREVPAGE,
 };
 
 static int Smth_GetPressedKey( void )
@@ -202,6 +215,12 @@ static int Smth_CheckPressedKey( void ) {
 				}
 				if ( key == VK_RIGHT ) {
 					return SK_RIGHT;
+				}
+				if ( key == VK_NEXT ) {
+					return SK_NEXTPAGE;
+				}
+				if ( key == VK_PRIOR ) {
+					return SK_PREVPAGE;
 				}
 				if ( key == 0x31 && shiftPressed ) { // ! key
 					return SK_QUIT;
@@ -519,6 +538,31 @@ static std::string Smth_GetUrlCategory( const std::string& fullUrl )
 	return "";
 }
 
+static std::string Smth_GetNextPageUrl( const std::string& fullUrl )
+{
+	size_t index = fullUrl.rfind( "?p=" );
+	if ( index != std::string::npos ) {
+		int currentPage = std::stoi( fullUrl.substr(index + 3) );
+		return fullUrl.substr(0, index + 3) + std::to_string( currentPage + 1 );
+	}
+	return fullUrl + "?p=2";
+}
+
+static std::string Smth_GetPrevPageUrl( const std::string& fullUrl )
+{
+	size_t index = fullUrl.rfind( "?p=" );
+	if ( index != std::string::npos ) {
+		int currentPage = std::stoi( fullUrl.substr(index + 3) );
+		if ( currentPage - 1 > 1 ) {
+			return fullUrl.substr(0, index + 3) + std::to_string( currentPage + 1 );
+		}
+		else {
+			return fullUrl.substr(0, index);
+		}
+	}
+	return fullUrl;
+}
+
 static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=nullptr )
 {
 	system( "cls" );
@@ -531,18 +575,26 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 
 	if ( cat == "board" ) { 
 		result = Net_Get( fullUrl );
-		Smth_OutputBoardPage( Smth_GetBoardPage( result ), state );
+		gsSmth.board = Smth_GetBoardPage( result );
+		Smth_OutputBoardPage( gsSmth.board, state );
 	}
 	else if ( cat == "article" ) { 
 		result = Net_Get( fullUrl );
-		Smth_OutputArticlePage( Smth_GetArticlePage( result ), state );
+		gsSmth.article = Smth_GetArticlePage( result );
+		Smth_OutputArticlePage( gsSmth.article, state );
 	}
 	else {
 		result = Net_Get( fullUrl );
-		Smth_OutputSectionPage( Smth_GetSectionPage( result ), state );
+		gsSmth.section = Smth_GetSectionPage( result );
+		Smth_OutputSectionPage( gsSmth.section, state );
 	}
 
-	gsSmth.urlStack.push( fullUrl );
+	if ( gsSmth.urlStack.size() > 0 && gsSmth.urlStack.top() != fullUrl ) {
+		gsSmth.urlStack.push( fullUrl );
+	}
+	else if ( gsSmth.urlStack.size() == 0 ) {
+		gsSmth.urlStack.push( fullUrl );
+	}
 }
 
 bool Smth_Init( void )
@@ -572,7 +624,7 @@ void Smth_Update( void )
 	std::string curUrl = "";
 	do {
 
-		if ( gsSmth.gotoUrl.length() > 0 ) {
+		if ( gsSmth.gotoUrl.length() > 0 && gsSmth.gotoUrl != curUrl ) {
 			curUrl = gsSmth.gotoUrl;
 			Smth_GotoUrl(gsSmth.gotoUrl, &linkState );
 			gsSmth.gotoUrl = "";
@@ -613,6 +665,26 @@ void Smth_Update( void )
 						index = 0;
 					}
 					gsSmth.gotoUrl = SMTH_HOMEPAGES[index];
+				}
+			}
+			break;
+		case SK_PREVPAGE:
+			{
+				std::string cat = Smth_GetUrlCategory( curUrl );
+				if ( cat == "article" ) {
+					if ( gsSmth.article.pageIndex > 1 ) {
+						gsSmth.gotoUrl = Smth_GetPrevPageUrl( curUrl );
+					}
+				}
+			}
+			break;
+		case SK_NEXTPAGE:
+			{
+				std::string cat = Smth_GetUrlCategory( curUrl );
+				if ( cat == "article" ) {
+					if ( gsSmth.article.pageIndex < gsSmth.article.pageCount ) {
+						gsSmth.gotoUrl = Smth_GetNextPageUrl( curUrl );
+					}
 				}
 			}
 			break;
