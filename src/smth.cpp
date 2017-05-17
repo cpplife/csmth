@@ -27,12 +27,15 @@ static const char* SMTH_HOMEPAGES[] = {
 	"m.newsmth.net/hot/7",
 	"m.newsmth.net/hot/8",
 	"m.newsmth.net/hot/9",
+	"m.newsmth.net/board/Universal",
+	"m.newsmth.net/article/Picture/1659069",
 };
 
 static const int SMTH_HOMEPAGE_COUNT = sizeof(SMTH_HOMEPAGES)/sizeof(SMTH_HOMEPAGES[0]);
 
 static struct {
 	std::stack<std::string> urlStack;
+	std::string gotoUrl;
 } gsSmth;
 
 static const std::string SMTH_DOMAIN = "m.newsmth.net";
@@ -547,6 +550,7 @@ bool Smth_Init( void )
 	if ( Net_Init() ) {
 		_setmode(_fileno(stdout), _O_U16TEXT);
 
+		gsSmth.gotoUrl = SMTH_HOMEPAGES[0];
 		return true;
 	}
 	return false;
@@ -565,38 +569,13 @@ void Smth_Update( void )
 	int i = 0;
 	LinkPositionState linkState;
 
+	std::string curUrl = "";
 	do {
-		std::string result;
 
-		std::string curUrl = gsSmth.urlStack.size() > 0 ? gsSmth.urlStack.top() : SMTH_HOMEPAGES[0];
-
-		switch ( i ) {
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-		case 4:
-		case 5:
-		case 6:
-		case 7:
-		case 8:
-		case 9:
-			Smth_GotoUrl( SMTH_HOMEPAGES[i], &linkState );
-			break;
-		case 33:
-			Smth_GotoUrl( "m.newsmth.net/board/Universal", &linkState );
-			break;
-		case 44:
-			Smth_GotoUrl( "m.newsmth.net/article/Picture/1659069", &linkState );
-			break;
-		case 0xFF:
-			Smth_GotoUrl( linkState.Url(), &linkState );
-			break;
-		case 0xEE:
-			Smth_GotoUrl( curUrl, &linkState );
-			break;
-		default:
-			break;
+		if ( gsSmth.gotoUrl.length() > 0 ) {
+			curUrl = gsSmth.gotoUrl;
+			Smth_GotoUrl(gsSmth.gotoUrl, &linkState );
+			gsSmth.gotoUrl = "";
 		}
 
 		Smth_SetPosMarker( linkState.PosX(), linkState.PosY() );
@@ -604,7 +583,7 @@ void Smth_Update( void )
 		c = Smth_CheckPressedKey();
 		switch( c ) {
 		case SK_H:
-			i = 0;
+			gsSmth.gotoUrl = SMTH_HOMEPAGES[0];
 			break;
 		case SK_UP:
 			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
@@ -618,6 +597,7 @@ void Smth_Update( void )
 			{
 				if ( gsSmth.urlStack.size() > 1 ) {
 					gsSmth.urlStack.pop();
+					gsSmth.gotoUrl = gsSmth.urlStack.top();
 					i = 0xEE;
 				}
 			}
@@ -627,9 +607,12 @@ void Smth_Update( void )
 		case SK_TAB:
 			{
 				int index = Smth_GetHomePageIndex( curUrl );
-				if ( index != -1 ) {
-					i = index + 1;
-					i = i % 10;
+				if ( index >= 0 ) {
+					index++;
+					if ( index >= SMTH_HOMEPAGE_COUNT ) {
+						index = 0;
+					}
+					gsSmth.gotoUrl = SMTH_HOMEPAGES[index];
 				}
 			}
 			break;
@@ -639,11 +622,10 @@ void Smth_Update( void )
 			break;
 		case SK_ENTER:
 			if ( linkState.posIndex >= 0 ) {
-				i = 0xFF;
+				gsSmth.gotoUrl = linkState.Url();
 			}
 			break;
 		default:
-			i = -1;
 			break;
 		}
 
