@@ -17,6 +17,7 @@
 
 
 static const char* SMTH_HOMEPAGES[] = {
+	"m.newsmth.net/section",
 	"m.newsmth.net",
 	"m.newsmth.net/hot/1",
 	"m.newsmth.net/hot/2",
@@ -242,6 +243,29 @@ std::wstring Smth_Utf8StringToWString( const std::string& text )
 	return converter.from_bytes( text );
 }
 
+static std::string Smth_IntToUtf8String( int c )
+{
+	std::string s;
+	if ( c < 0x80 ) {
+		s.push_back( ( char)c );
+	} else if ( c < 0x800 ) { // 11 bits
+		s.push_back( (char)( 0xC0 | ( c >> 6 ) ) );
+		s.push_back( (char)( 0x80 | ( c & 0x3F ) ) );
+	} else if ( c < 0x10000 ) { // 16 bits
+		s.push_back( (char)( 0xE0 | ( c >> 12 ) ) );
+		s.push_back( (char)( 0x80 | ( ( c >> 6 ) & 0x3F ) ) );
+		s.push_back( (char)( 0x80 | ( c & 0x3F ) ) );
+	} else if ( c < 0x200000 ) { // 21 bits
+		s.push_back( (char)( 0xF0 | ( c >> 18 ) ) );
+		s.push_back( (char)( 0x80 | ( ( c >> 12 ) & 0x3F ) ) );
+		s.push_back( (char)( 0x80 | ( ( c >> 6 ) & 0x3F ) ) );
+		s.push_back( (char)( 0x80 | ( c & 0x3F ) ) );
+	} else {
+		s.push_back( '?' );
+	}
+	return s;
+}
+
 #if 0
 static std::wstring Smth_ClearMetaTag( const std::wstring& text )
 {
@@ -265,6 +289,54 @@ static std::wstring Smth_ClearMetaTag( const std::wstring& text )
 }
 #endif
 
+static std::string Smth_ReplaceHtmlEntities( const std::string& text )
+{
+	std::string s = text;
+
+	static struct {
+		const char* src;
+		const char* dst;
+	} tags[] = {
+		{ "&nbsp;", " "  },
+		{ "&lt;",   "<"  },
+		{ "&gt;",   ">"  },
+		{ "&amp;",  "&"  },
+		{ "&quot;", "\"" },
+		{ "&apos;", "'"  },
+	};
+
+	int count = sizeof( tags ) / sizeof( tags[0] );
+	for ( int i = 0; i < count; ++i ) {
+		while ( true ) {
+			size_t index = s.find( tags[i].src );
+			if ( index != std::string::npos ) {
+				size_t len = strlen( tags[i].src );
+				s = s.replace( index, len, tags[i].dst );
+			}
+			else {
+				break;
+			}
+		}
+	}
+
+	while ( true ) {
+		size_t index = s.find( "&#" );
+		if ( index != std::string::npos ) {
+			size_t end = s.find( ";", index );
+			if ( end != std::string::npos ) {
+				std::string n = s.substr( index + 2, end + 1 - index - 2 );
+				int c = std::stoi( n );
+				s = s.replace( index, end + 1 - index, Smth_IntToUtf8String( c ) );
+			}
+		}
+		else {
+			break;
+		}
+	}
+
+	return s;
+}
+
 static std::string Smth_ReplaceHtmlTags( const std::string& text )
 {
 	std::string s = text;
@@ -276,21 +348,15 @@ static std::string Smth_ReplaceHtmlTags( const std::string& text )
 		{ "<br>",   "\n" },
 		{ "<br/>",  "\n" },
 		{ "<br />", "\n" },
-		{ "&nbsp;", " "  },
 	};
 
-
 	int count = sizeof( tags ) / sizeof( tags[0] );
-
 	for ( int i = 0; i < count; ++i ) {
 		while ( true ) {
 			size_t index = s.find( tags[i].src );
 			if ( index != std::string::npos ) {
-
 				size_t len = strlen( tags[i].src );
-
 				s = s.replace( index, len, tags[i].dst );
-
 			}
 			else {
 				break;
@@ -299,6 +365,11 @@ static std::string Smth_ReplaceHtmlTags( const std::string& text )
 	}
 
 	return s;
+}
+
+static std::string Smth_ParseHtml( const std::string& text )
+{
+	return Smth_ReplaceHtmlTags( Smth_ReplaceHtmlEntities( text ) );
 }
 
 static std::vector<std::string> Smth_ExtractImgUrl( const std::string& text )
@@ -321,7 +392,7 @@ static std::vector<std::string> Smth_ExtractImgUrl( const std::string& text )
 
 static std::string Smth_ProcessArticleContent( const std::string& text )
 {
-	std::string s = Smth_ReplaceHtmlTags( text );
+	std::string s = Smth_ParseHtml( text );
 	std::vector<std::string> urls = Smth_ExtractImgUrl( s );
 	s = Smth_ClearHtmlTags( s );
 	for ( size_t i = 0; i < urls.size(); ++i ) {
@@ -425,7 +496,7 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 					std::string tt = m.str();
 					if (std::regex_search( tt, um, rr ) ) {
 						item.url   = um.str(1);
-						item.title = Smth_ClearHtmlTags( um.str(2) );
+						item.title = Smth_ParseHtml( Smth_ClearHtmlTags( um.str(2) ) );
 
 						page.items.push_back( item );
 					}
@@ -460,7 +531,7 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 				r.assign( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
 				if (std::regex_search( mstr, um, r ) ) {
 					item.url   = um.str(1);
-					item.title = Smth_ClearHtmlTags( um.str(2) );
+					item.title = Smth_ParseHtml( Smth_ClearHtmlTags( um.str(2) ) );
 				}
 				page.items.push_back( item );
 				titleText = m.suffix();
@@ -513,7 +584,6 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 					}
 					rr.assign( "<div class=\"sp\">(.+?)</div>", std::regex::ECMAScript );
 					if (std::regex_search( tt, um, rr ) ) {
-						//item.content = Smth_ReplaceHtmlTags( um.str(1) );
 						item.content = Smth_ProcessArticleContent( um.str(1) );
 					}
 					page.items.push_back( item );
