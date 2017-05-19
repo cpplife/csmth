@@ -137,6 +137,7 @@ enum SMTH_KEY {
 	SK_ENTER,
 	SK_H,
 	SK_TAB,
+	SK_STAB,
 	SK_QUIT,
 	SK_CTRLC,
 	SK_NEXTPAGE,
@@ -203,7 +204,7 @@ static int Smth_CheckPressedKey( void ) {
 					return SK_ENTER;
 				}
 				if ( key == VK_TAB ) {
-					return SK_TAB;
+					return shiftPressed ? SK_STAB : SK_TAB;
 				}
 				if ( key == VK_UP ) {
 					return SK_UP;
@@ -725,6 +726,18 @@ void Smth_Update( void )
 			}
 			break;
 		case SK_RIGHT:
+			break;
+		case SK_STAB:
+			{
+				int index = Smth_GetHomePageIndex( curUrl );
+				if ( index >= 0 ) {
+					index--;
+					if ( index < 0 ) {
+						index = SMTH_HOMEPAGE_COUNT - 1;
+					}
+					gsSmth.gotoUrl = SMTH_HOMEPAGES[index];
+				}
+			}
 			break;
 		case SK_TAB:
 			{
