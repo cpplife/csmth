@@ -19,7 +19,9 @@ struct BoardItem {
 	std::string url;
 	std::string title;
 	std::string author;
+	std::string author_time;
 	std::string last_replier;
+	std::string replier_time;
 };
 
 struct BoardPage {

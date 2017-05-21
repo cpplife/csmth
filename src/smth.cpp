@@ -494,7 +494,9 @@ void Smth_OutputBoardPage( const BoardPage& page, LinkPositionState* state )
 		s = Smth_Utf8StringToWString(page.items[index].title);
 		int x, y;
 		Smth_GetCursorXY( x, y );
-		wprintf( L"  %s\n", s.c_str() );
+		std::wstring time = Smth_Utf8StringToWString(page.items[index].replier_time);
+		t = Smth_Utf8StringToWString(page.items[index].author);
+		wprintf( L"  %10s %12s %s\n", time.c_str(), t.c_str(), s.c_str() );
 
 		if ( state != nullptr && x >= 0 && y >= 0 ) {
 			state->Append( x, y, SMTH_DOMAIN + page.items[index].url );
@@ -618,10 +620,25 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 				std::smatch um;
 				std::string mstr = m.str();
 				BoardItem item;
-				r.assign( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
-				if (std::regex_search( mstr, um, r ) ) {
+				std::regex rr( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
+				if (std::regex_search( mstr, um, rr ) ) {
 					item.url   = um.str(1);
 					item.title = Smth_ParseHtml( Smth_ClearHtmlTags( um.str(2) ) );
+				}
+
+				static const char* PATERN[] = {
+					"<div>(\\d{4}-\\d{2}-\\d{2})[&]nbsp;<a href=\"(.*?)\">(.+?)</a>\\|(\\d{4}-\\d{2}-\\d{2})[&]nbsp;<a href=\"(.+?)\">(.+?)</a></div>",
+					"<div>(\\d{2}:\\d{2}:\\d{2})[&]nbsp;<a href=\"(.*?)\">(.+?)</a>\\|(\\d{2}:\\d{2}:\\d{2})[&]nbsp;<a href=\"(.+?)\">(.+?)</a></div>",
+					"<div>(\\d{4}-\\d{2}-\\d{2})[&]nbsp;<a href=\"(.*?)\">(.+?)</a>\\|(\\d{2}:\\d{2}:\\d{2})[&]nbsp;<a href=\"(.+?)\">(.+?)</a></div>",
+				};
+				for ( size_t k = 0; k < sizeof( PATERN ) / sizeof( PATERN[0] ); ++k ) {
+					rr.assign( PATERN[k], std::regex::ECMAScript );
+					if (std::regex_search( mstr, um, rr ) ) {
+						item.author_time  = um.str(1);
+						item.author       = um.str(3);
+						item.replier_time = um.str(4);
+						item.last_replier = um.str(6);
+					}
 				}
 				page.items.push_back( item );
 				titleText = m.suffix();
