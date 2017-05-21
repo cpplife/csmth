@@ -98,6 +98,10 @@ struct LinkPositionState {
 enum VIEWLINE_TYPE {
 	TEXT,
 	TEXT_MORE,
+	REFER_AUTHOR,
+	REFER,
+	REFER_MORE,
+	FROM,
 };
 class ViewLine
 {
@@ -123,6 +127,11 @@ public:
 	int  Length() const
 	{
 		return (int)content.length();
+	}
+
+	std::wstring Text() const
+	{
+		return content;
 	}
 
 	void Append( wchar_t c );
@@ -163,8 +172,9 @@ class PageView
 {
 public:
 	PageView( size_t w=80, size_t h=24 );
-	void Parse( const std::string& text );
+	void ParseArticle( const std::string& text );
 	void Output( LinkPositionState* state = nullptr ) const;
+	VIEWLINE_TYPE AdjustLineType( const ViewLine& line, VIEWLINE_TYPE prevLineType ) const;
 	void SetItemIndex( int idx )
 	{
 		itemIndex = idx;

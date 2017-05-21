@@ -246,6 +246,34 @@ static int Smth_CheckPressedKey( void ) {
 
 };
 
+static void Smth_PrintLn( VIEWLINE_TYPE type, const std::wstring& text )
+{
+	HANDLE h = GetStdHandle( STD_OUTPUT_HANDLE );
+	WORD wOldColorAttrs;
+	CONSOLE_SCREEN_BUFFER_INFO csbiInfo;
+
+	GetConsoleScreenBufferInfo(h, &csbiInfo);
+	wOldColorAttrs = csbiInfo.wAttributes;
+
+	switch( type ) {
+	case FROM: // Dark red
+		SetConsoleTextAttribute( h, FOREGROUND_RED );
+		break;
+	case REFER_AUTHOR: // Dark yellow
+		SetConsoleTextAttribute( h, FOREGROUND_RED | FOREGROUND_GREEN );
+		break;
+	case REFER:
+	case REFER_MORE: // Dark magenta
+		SetConsoleTextAttribute( h, FOREGROUND_GREEN | FOREGROUND_BLUE );
+		break;
+	default:
+		break;
+	}
+
+	wprintf( L"  %s\n", text.c_str() );
+	SetConsoleTextAttribute( h, wOldColorAttrs );
+}
+
 std::wstring Smth_Utf8StringToWString( const std::string& text )
 {
 	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
@@ -480,7 +508,7 @@ void Smth_CreateViewFromArticlePage( const ArticlePage& page, PageView& view )
 {
 	view.Clear();
 	for ( size_t i = 0; i < page.items.size(); ++i ) {
-		view.Parse( page.items[i].author + "\n\n" + page.items[i].content );
+		view.ParseArticle( page.items[i].author + "\n\n" + page.items[i].content );
 	}
 	view.SetItemIndex( 0 );
 }
@@ -848,12 +876,13 @@ PageView::PageView( size_t w, size_t h )
 	itemIndex = -1;
 }
 
-void PageView::Parse( const std::string& text )
+void PageView::ParseArticle( const std::string& text )
 {
 	std::wstring wt = Smth_Utf8StringToWString( text );
 	
 	PageViewItem item;
 	ViewLine line( TEXT );
+	VIEWLINE_TYPE prevLineType = TEXT;
 	size_t charCount = 0;
 	for ( size_t i = 0; i < wt.length(); ++i ) {
 		wchar_t c = wt[i];
@@ -865,6 +894,8 @@ void PageView::Parse( const std::string& text )
 		}
 		if ( c == L'\n' ) {
 
+			line.SetType( AdjustLineType( line, prevLineType ) );
+			prevLineType = line.Type();
 			item.Append( line );
 			if ( item.LineCount() == height ) {
 				items.push_back( item );
@@ -877,6 +908,8 @@ void PageView::Parse( const std::string& text )
 		}
 		if ( charCount + charSize > width ) {
 
+			line.SetType( AdjustLineType( line, prevLineType ) );
+			prevLineType = line.Type();
 			item.Append( line );
 			if ( item.LineCount() == height ) {
 				items.push_back( item );
@@ -894,6 +927,8 @@ void PageView::Parse( const std::string& text )
 
 	}
 	if ( line.Length() > 0 ) {
+		line.SetType( AdjustLineType( line, prevLineType ) );
+		prevLineType = line.Type();
 		item.Append( line );
 	}
 	if ( item.LineCount() > 0 ) {
@@ -920,6 +955,25 @@ void PageView::Output( LinkPositionState* state ) const
 	}
 }
 
+VIEWLINE_TYPE PageView::AdjustLineType( const ViewLine& line, VIEWLINE_TYPE prevLineType ) const
+{
+	std::wstring ln = line.Text();
+	if ( ln.find(L"FROM") == 0 ) {
+		return FROM;
+	}
+	if ( ln.length() > 0 && (int)ln[0] == 12304 ) {
+		return REFER_AUTHOR;
+	}
+	if ( ln.length() > 0 && ln[0] == L':' ) {
+		return REFER;
+	}
+	if ( line.Type() == TEXT_MORE && ( prevLineType == REFER || prevLineType == REFER_MORE ) ) {
+		return REFER_MORE;
+	}
+
+	return line.Type();
+}
+
 /////////////////////////////////////////////////////////////////////////////
 void ViewLine::Append( wchar_t c )
 {
@@ -928,5 +982,5 @@ void ViewLine::Append( wchar_t c )
 
 void ViewLine::Output( void ) const
 {
-	wprintf( L"  %s\n", content.c_str() );
+	Smth_PrintLn( type, content );
 }
