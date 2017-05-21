@@ -468,6 +468,24 @@ void Smth_OutputArticlePage( const ArticlePage& page, LinkPositionState* state )
 	}
 }
 
+void Smth_OutputArticlePage2( const ArticlePage& page, LinkPositionState* state )
+{
+	PageView view( 80, 24 );
+	int x, y;
+	for ( size_t i = 0; i < page.items.size(); ++i ) {
+		view.Parse( page.items[i].author );
+		view.Parse( page.items[i].content );
+	}
+	view.Output();
+
+	// Added last line as the pos, so we can see last text when move cursor.
+	Smth_GetCursorXY( x, y );
+	if ( state != nullptr && x >= 0 && y >= 0 ) {
+		state->Append( x, y, SMTH_DOMAIN );
+		state->posIndex = 0;
+	}
+}
+
 SectionPage Smth_GetSectionPage( const std::string& htmlText )
 {
 	SectionPage page;
@@ -652,7 +670,7 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 	else if ( cat == "article" ) { 
 		result = Net_Get( fullUrl );
 		gsSmth.article = Smth_GetArticlePage( result );
-		Smth_OutputArticlePage( gsSmth.article, state );
+		Smth_OutputArticlePage2( gsSmth.article, state );
 	}
 	else {
 		result = Net_Get( fullUrl );
@@ -785,4 +803,66 @@ void Smth_Update( void )
 		}
 
 	} while ( !quit );
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+PageView::PageView( size_t w, size_t h )
+	: width( w ), height( h )
+{
+}
+
+void PageView::Parse( const std::string& text )
+{
+	std::wstring wt = Smth_Utf8StringToWString( text );
+	ViewLine line( TEXT );
+	size_t charCount = 0;
+	for ( size_t i = 0; i < wt.length(); ++i ) {
+		wchar_t c = wt[i];
+		int charSize = 1;
+		if ( c > 127 ) {
+			// Unicode char as 2 chars
+			// TODO: This is not right, need to polish.
+			charSize = 2;
+		}
+		if ( c == L'\n' ) {
+			//line.Append( c );
+			lines.push_back( line );
+			line.Clear();
+			charCount = 0;
+			continue;
+		}
+		if ( charCount + charSize > width ) {
+			lines.push_back( line );
+			line.Clear();
+			line.SetType( TEXT_MORE );
+			line.Append( c );
+			charCount = charSize;
+			continue;
+		}
+		line.Append( c );
+		charCount += charSize;
+
+	}
+	if ( line.Length() > 0 ) {
+		lines.push_back( line );
+	}
+}
+
+void PageView::Output( void )
+{
+	for ( size_t i = 0; i < lines.size(); ++i ) {
+		lines[i].Output();
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void ViewLine::Append( wchar_t c )
+{
+	content.push_back( c );
+}
+
+void ViewLine::Output( void )
+{
+	wprintf( L"  %s\n", content.c_str() );
 }

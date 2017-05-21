@@ -95,6 +95,56 @@ struct LinkPositionState {
 
 };
 
+enum VIEWLINE_TYPE {
+	TEXT,
+	TEXT_MORE,
+};
+class ViewLine
+{
+public:
+	ViewLine( VIEWLINE_TYPE t )
+		: type( t )
+	{
+	}
+	void SetType( VIEWLINE_TYPE t )
+	{
+		type = t;
+	}
+	VIEWLINE_TYPE Type() const
+	{
+		return type;
+	}
+
+	void Clear()
+	{
+		type = TEXT;
+		content.clear();
+	}
+	int  Length() const
+	{
+		return (int)content.length();
+	}
+
+	void Append( wchar_t c );
+	void Output();
+
+private:
+	VIEWLINE_TYPE type; 
+	std::wstring content;
+};
+
+class PageView {
+public:
+	PageView( size_t w, size_t h );
+	void Parse( const std::string& text );
+	void Output();
+
+private:
+	std::vector<ViewLine> lines;
+	size_t width;
+	size_t height;
+};
+
 
 SectionPage Smth_GetSectionPage( const std::string& htmlText );
 
