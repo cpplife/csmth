@@ -42,6 +42,8 @@ static struct SmthModule {
 	BoardPage   board;
 	SectionPage section;
 
+	PageView    view;
+
 	// Added class name and ctor/dtor to avoid compiling error (c2280 in windows)
 	SmthModule() {
 	}
@@ -135,6 +137,7 @@ enum SMTH_KEY {
 	SK_LEFT,
 	SK_RIGHT,
 	SK_ENTER,
+	SK_SPACE,
 	SK_H,
 	SK_TAB,
 	SK_STAB,
@@ -197,38 +200,43 @@ static int Smth_CheckPressedKey( void ) {
 			bool shiftPressed = ( (record.Event.KeyEvent.dwControlKeyState) & (SHIFT_PRESSED)) != 0;
 
 			if ( !ctrlPressed && !altPressed ) {
-				if ( key == 0x48 && ( (!capsOn && shiftPressed) || (capsOn && !shiftPressed) ) ) {
-					return SK_H;
-				}
-				if ( key == VK_RETURN ) {
+				switch( key )
+				{
+				case 0x48:
+					if ( ( (!capsOn && shiftPressed) || (capsOn && !shiftPressed) ) ) {
+						return SK_H;
+					}
+					break;
+				case VK_SPACE:
+					return SK_SPACE;
+				case VK_RETURN:
 					return SK_ENTER;
-				}
-				if ( key == VK_TAB ) {
+				case VK_TAB:
 					return shiftPressed ? SK_STAB : SK_TAB;
-				}
-				if ( key == VK_UP ) {
+				case VK_UP:
 					return SK_UP;
-				}
-				if ( key == VK_DOWN ) {
+				case VK_DOWN:
 					return SK_DOWN;
-				}
-				if ( key == VK_LEFT ) {
+				case VK_LEFT:
 					return SK_LEFT;
-				}
-				if ( key == VK_RIGHT ) {
+				case VK_RIGHT:
 					return SK_RIGHT;
-				}
-				if ( key == VK_NEXT ) {
+				case VK_NEXT:
 					return SK_NEXTPAGE;
-				}
-				if ( key == VK_PRIOR ) {
+				case VK_PRIOR:
 					return SK_PREVPAGE;
-				}
-				if ( key == 0x31 && shiftPressed ) { // ! key
-					return SK_QUIT;
-				}
-				if ( key == 0x43 && ctrlPressed ) { // ctrl c
-					return SK_QUIT;
+				case 0x31:
+					if ( shiftPressed ) { // ! key
+						return SK_QUIT;
+					}
+					break;
+				case 0x43:
+					if ( ctrlPressed ) { // ctrl c
+						return SK_QUIT;
+					}
+					break;
+				default:
+					break;
 				}
 			}
 		}
@@ -468,22 +476,13 @@ void Smth_OutputArticlePage( const ArticlePage& page, LinkPositionState* state )
 	}
 }
 
-void Smth_OutputArticlePage2( const ArticlePage& page, LinkPositionState* state )
+void Smth_CreateViewFromArticlePage( const ArticlePage& page, PageView& view )
 {
-	PageView view( 80, 24 );
-	int x, y;
+	view.Clear();
 	for ( size_t i = 0; i < page.items.size(); ++i ) {
-		view.Parse( page.items[i].author );
-		view.Parse( page.items[i].content );
+		view.Parse( page.items[i].author + "\n\n" + page.items[i].content );
 	}
-	view.Output();
-
-	// Added last line as the pos, so we can see last text when move cursor.
-	Smth_GetCursorXY( x, y );
-	if ( state != nullptr && x >= 0 && y >= 0 ) {
-		state->Append( x, y, SMTH_DOMAIN );
-		state->posIndex = 0;
-	}
+	view.SetItemIndex( 0 );
 }
 
 SectionPage Smth_GetSectionPage( const std::string& htmlText )
@@ -643,7 +642,7 @@ static std::string Smth_GetPrevPageUrl( const std::string& fullUrl )
 	if ( index != std::string::npos ) {
 		int currentPage = std::stoi( fullUrl.substr(index + 3) );
 		if ( currentPage - 1 > 1 ) {
-			return fullUrl.substr(0, index + 3) + std::to_string( currentPage + 1 );
+			return fullUrl.substr(0, index + 3) + std::to_string( currentPage - 1 );
 		}
 		else {
 			return fullUrl.substr(0, index);
@@ -670,7 +669,7 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 	else if ( cat == "article" ) { 
 		result = Net_Get( fullUrl );
 		gsSmth.article = Smth_GetArticlePage( result );
-		Smth_OutputArticlePage2( gsSmth.article, state );
+		Smth_CreateViewFromArticlePage( gsSmth.article, gsSmth.view );
 	}
 	else {
 		result = Net_Get( fullUrl );
@@ -707,16 +706,32 @@ void Smth_Update( void )
 	int c = 0;
 
 	bool quit = false;
-	int i = 0;
+
+	int artileIndex = -1;
+
 	LinkPositionState linkState;
 
 	std::string curUrl = "";
+	std::string cat = "";
 	do {
 
 		if ( gsSmth.gotoUrl.length() > 0 && gsSmth.gotoUrl != curUrl ) {
 			curUrl = gsSmth.gotoUrl;
 			Smth_GotoUrl(gsSmth.gotoUrl, &linkState );
 			gsSmth.gotoUrl = "";
+
+			cat = Smth_GetUrlCategory( curUrl );
+			if ( cat == "article" ) {
+				artileIndex = 0;
+			}
+			else {
+				artileIndex = -1;
+			}
+		}
+
+		if ( artileIndex >= 0 ) {
+			gsSmth.view.Output( &linkState );
+			artileIndex = -1;
 		}
 
 		Smth_SetPosMarker( linkState.PosX(), linkState.PosY() );
@@ -729,17 +744,39 @@ void Smth_Update( void )
 		case SK_UP:
 			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
 			linkState.PrevPos();
+			if ( cat == "article" ) {
+				if ( gsSmth.view.ItemIndex() > 0 ) {
+					gsSmth.view.SetItemIndex( gsSmth.view.ItemIndex() - 1 );
+					artileIndex = gsSmth.view.ItemIndex();
+				}
+				else {
+					if ( gsSmth.article.pageIndex > 1 ) {
+						gsSmth.gotoUrl = Smth_GetPrevPageUrl( curUrl );
+					}
+				}
+			}
 			break;
+		case SK_SPACE:
 		case SK_DOWN:
 			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
 			linkState.NextPos();
+			if ( cat == "article" ) {
+				if ( gsSmth.view.ItemIndex() < gsSmth.view.ItemCount() - 1 ) {
+					gsSmth.view.SetItemIndex( gsSmth.view.ItemIndex() + 1 );
+					artileIndex = gsSmth.view.ItemIndex();
+				}
+				else {
+					if (gsSmth.article.pageIndex < gsSmth.article.pageCount) {
+						gsSmth.gotoUrl = Smth_GetNextPageUrl( curUrl );
+					}
+				}
+			}
 			break;
 		case SK_LEFT:
 			{
 				if ( gsSmth.urlStack.size() > 1 ) {
 					gsSmth.urlStack.pop();
 					gsSmth.gotoUrl = gsSmth.urlStack.top();
-					i = 0xEE;
 				}
 			}
 			break;
@@ -771,7 +808,6 @@ void Smth_Update( void )
 			break;
 		case SK_PREVPAGE:
 			{
-				std::string cat = Smth_GetUrlCategory( curUrl );
 				if ( cat == "article" ) {
 					if ( gsSmth.article.pageIndex > 1 ) {
 						gsSmth.gotoUrl = Smth_GetPrevPageUrl( curUrl );
@@ -781,7 +817,6 @@ void Smth_Update( void )
 			break;
 		case SK_NEXTPAGE:
 			{
-				std::string cat = Smth_GetUrlCategory( curUrl );
 				if ( cat == "article" ) {
 					if ( gsSmth.article.pageIndex < gsSmth.article.pageCount ) {
 						gsSmth.gotoUrl = Smth_GetNextPageUrl( curUrl );
@@ -810,11 +845,14 @@ void Smth_Update( void )
 PageView::PageView( size_t w, size_t h )
 	: width( w ), height( h )
 {
+	itemIndex = -1;
 }
 
 void PageView::Parse( const std::string& text )
 {
 	std::wstring wt = Smth_Utf8StringToWString( text );
+	
+	PageViewItem item;
 	ViewLine line( TEXT );
 	size_t charCount = 0;
 	for ( size_t i = 0; i < wt.length(); ++i ) {
@@ -826,14 +864,25 @@ void PageView::Parse( const std::string& text )
 			charSize = 2;
 		}
 		if ( c == L'\n' ) {
-			//line.Append( c );
-			lines.push_back( line );
+
+			item.Append( line );
+			if ( item.LineCount() == height ) {
+				items.push_back( item );
+				item.Clear();
+			}
+
 			line.Clear();
 			charCount = 0;
 			continue;
 		}
 		if ( charCount + charSize > width ) {
-			lines.push_back( line );
+
+			item.Append( line );
+			if ( item.LineCount() == height ) {
+				items.push_back( item );
+				item.Clear();
+			}
+
 			line.Clear();
 			line.SetType( TEXT_MORE );
 			line.Append( c );
@@ -845,14 +894,29 @@ void PageView::Parse( const std::string& text )
 
 	}
 	if ( line.Length() > 0 ) {
-		lines.push_back( line );
+		item.Append( line );
+	}
+	if ( item.LineCount() > 0 ) {
+		items.push_back( item );
 	}
 }
 
-void PageView::Output( void )
+void PageView::Output( LinkPositionState* state ) const
 {
-	for ( size_t i = 0; i < lines.size(); ++i ) {
-		lines[i].Output();
+	if ( state != nullptr ) {
+		state->Clear();
+	}
+
+	system( "cls" );
+	if ( itemIndex >= 0 && itemIndex < (int)items.size() ) {
+		items[itemIndex].Output();
+	}
+
+	int x, y;
+	Smth_GetCursorXY( x, y );
+	if ( state != nullptr && x >= 0 && y >= 0 ) {
+		state->Append( x, y, SMTH_DOMAIN );
+		state->posIndex = 0;
 	}
 }
 
@@ -862,7 +926,7 @@ void ViewLine::Append( wchar_t c )
 	content.push_back( c );
 }
 
-void ViewLine::Output( void )
+void ViewLine::Output( void ) const
 {
 	wprintf( L"  %s\n", content.c_str() );
 }

@@ -126,23 +126,68 @@ public:
 	}
 
 	void Append( wchar_t c );
-	void Output();
+	void Output() const;
 
 private:
 	VIEWLINE_TYPE type; 
 	std::wstring content;
 };
 
-class PageView {
+class PageViewItem
+{
 public:
-	PageView( size_t w, size_t h );
-	void Parse( const std::string& text );
-	void Output();
+	void Clear()
+	{
+		lines.clear();
+	}
+	void Append( const ViewLine& ln )
+	{
+		lines.push_back( ln );
+	}
+	size_t LineCount() const
+	{
+		return lines.size();
+	}
+	void Output() const
+	{
+		for ( size_t i = 0; i < lines.size(); ++i ) {
+			lines[i].Output();
+		}
+	}
 
 private:
 	std::vector<ViewLine> lines;
-	size_t width;
-	size_t height;
+};
+
+class PageView
+{
+public:
+	PageView( size_t w=80, size_t h=24 );
+	void Parse( const std::string& text );
+	void Output( LinkPositionState* state = nullptr ) const;
+	void SetItemIndex( int idx )
+	{
+		itemIndex = idx;
+	}
+	int ItemIndex() const
+	{
+		return itemIndex;
+	}
+	int ItemCount() const
+	{
+		return (int)items.size();
+	}
+	void Clear()
+	{
+		itemIndex = -1;
+		items.clear();
+	}
+
+private:
+	std::vector<PageViewItem> items;
+	int                       itemIndex;
+	size_t                    width;
+	size_t                    height;
 };
 
 
