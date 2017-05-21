@@ -28,8 +28,6 @@ static const char* SMTH_HOMEPAGES[] = {
 	"m.newsmth.net/hot/7",
 	"m.newsmth.net/hot/8",
 	"m.newsmth.net/hot/9",
-	"m.newsmth.net/board/Universal",
-	"m.newsmth.net/article/Picture/1659069",
 };
 
 static const int SMTH_HOMEPAGE_COUNT = sizeof(SMTH_HOMEPAGES)/sizeof(SMTH_HOMEPAGES[0]);
@@ -63,6 +61,25 @@ static int Smth_GetHomePageIndex( const std::string& url )
 		}
 	}
 	return -1;
+}
+
+static bool Smth_IsHomePageUrl( const std::string& url )
+{
+	for ( int i = 0; i < SMTH_HOMEPAGE_COUNT; ++i ) {
+		if ( url == SMTH_HOMEPAGES[i] ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool Smth_IsSubPageUrl( const std::string& fullUrl )
+{
+	size_t index = fullUrl.rfind( "?p=" );
+	if ( index != std::string::npos ) {
+		return true;
+	}
+	return false;
 }
 
 
@@ -438,6 +455,16 @@ static std::string Smth_ProcessArticleContent( const std::string& text )
 	return s;
 }
 
+void Smth_CreateViewFromArticlePage( const ArticlePage& page, PageView& view )
+{
+	view.Clear();
+	for ( size_t i = 0; i < page.items.size(); ++i ) {
+		view.ParseArticle( page.items[i].author + "\n\n" + page.items[i].content );
+	}
+	view.SetItemIndex( 0 );
+}
+
+
 void Smth_OutputSectionPage( const SectionPage& page, LinkPositionState* state )
 {
 	std::wstring s = Smth_Utf8StringToWString(page.name);
@@ -504,18 +531,16 @@ void Smth_OutputArticlePage( const ArticlePage& page, LinkPositionState* state )
 	}
 }
 
-void Smth_CreateViewFromArticlePage( const ArticlePage& page, PageView& view )
-{
-	view.Clear();
-	for ( size_t i = 0; i < page.items.size(); ++i ) {
-		view.ParseArticle( page.items[i].author + "\n\n" + page.items[i].content );
-	}
-	view.SetItemIndex( 0 );
-}
-
 SectionPage Smth_GetSectionPage( const std::string& htmlText )
 {
 	SectionPage page;
+
+	// Get the board name
+	std::smatch m;
+	std::regex r( "<div class=\"menu sp\">.*?</a>\\|(.*?)</div>", std::regex::ECMAScript );
+	if ( std::regex_search( htmlText, m, r ) ) {
+		page.name = m.str(1);
+	}
 
 	const char* beginTag = "<ul class=\"slist sec\">";
 	const char* endTag = "</ul>";
@@ -526,8 +551,7 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 			
 			std::string titleText = htmlText.substr( index, end - index );
 			//
-			std::smatch m;
-			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
+			r.assign( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
 			while ( std::regex_search( titleText, m, r ) ) {
 				std::smatch um;
 				std::regex title( "<li class=\"f\">(.*?)</li>", std::regex::ECMAScript );
@@ -559,6 +583,27 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 {
 	BoardPage page;
 
+	// Get the board name
+	std::smatch m;
+	std::regex r( "<div class=\"menu sp\">.*?</a>\\|(.*?)</div>", std::regex::ECMAScript );
+	if ( std::regex_search( htmlText, m, r ) ) {
+		std::string s = m.str(1);
+		size_t i = s.find( '-' );
+		if ( i != std::string::npos ) {
+			size_t j = s.find( '(' );
+			size_t k = s.find( ')' );
+			page.name_cn = s.substr( i + 1, j - i - 1 );
+			page.name_en = s.substr( j + 1, k - j - 1 );
+		}
+	}
+
+	// Get page count.
+	r.assign( "<form action.+</a>\\|<a class=\"plant\">(\\d+)/(\\d+)</a>", std::regex::ECMAScript );
+	if ( std::regex_search( htmlText, m, r ) ) {
+		page.pageIndex = std::stoi( m.str(1) );
+		page.pageCount = std::stoi( m.str(2) );
+	}
+
 	const char* beginTag = "<ul class=\"list sec\">";
 	const char* endTag = "</ul>";
 	size_t index = htmlText.find( beginTag );
@@ -568,8 +613,7 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 			
 			std::string titleText = htmlText.substr( index, end - index );
 			//
-			std::smatch m;
-			std::regex r( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
+			r.assign( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
 			while ( std::regex_search( titleText, m, r ) ) {
 				std::smatch um;
 				std::string mstr = m.str();
@@ -589,7 +633,6 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 {
 	ArticlePage page;
-
 
 	// Get the board name
 	std::smatch m;
@@ -706,7 +749,12 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 	}
 
 	if ( gsSmth.urlStack.size() > 0 && gsSmth.urlStack.top() != fullUrl ) {
-		gsSmth.urlStack.push( fullUrl );
+		if ( Smth_IsHomePageUrl( fullUrl ) ) {
+			gsSmth.urlStack.pop();
+		}
+		if ( !Smth_IsSubPageUrl( fullUrl ) ) {
+			gsSmth.urlStack.push( fullUrl );
+		}
 	}
 	else if ( gsSmth.urlStack.size() == 0 ) {
 		gsSmth.urlStack.push( fullUrl );
@@ -841,12 +889,22 @@ void Smth_Update( void )
 						gsSmth.gotoUrl = Smth_GetPrevPageUrl( curUrl );
 					}
 				}
+				if ( cat == "board" ) {
+					if ( gsSmth.board.pageIndex > 1 ) {
+						gsSmth.gotoUrl = Smth_GetPrevPageUrl( curUrl );
+					}
+				}
 			}
 			break;
 		case SK_NEXTPAGE:
 			{
 				if ( cat == "article" ) {
 					if ( gsSmth.article.pageIndex < gsSmth.article.pageCount ) {
+						gsSmth.gotoUrl = Smth_GetNextPageUrl( curUrl );
+					}
+				}
+				if ( cat == "board" ) {
+					if ( gsSmth.board.pageIndex < gsSmth.board.pageCount ) {
 						gsSmth.gotoUrl = Smth_GetNextPageUrl( curUrl );
 					}
 				}

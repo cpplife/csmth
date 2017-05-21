@@ -25,6 +25,8 @@ struct BoardItem {
 struct BoardPage {
 	std::string name_cn;
 	std::string name_en;
+	size_t pageIndex;
+	size_t pageCount;
 	std::vector<BoardItem> items;
 };
 
