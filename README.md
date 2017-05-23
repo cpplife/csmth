@@ -1,1 +1,1 @@
-cmd smth
+smth in cmd.
