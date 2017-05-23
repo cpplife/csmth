@@ -5,17 +5,19 @@
 #include <string>
 #include <vector>
 
-struct TitleItem {
+struct SectionItem {
+	std::string type;
 	std::string url;
 	std::string title;
 };
 
 struct SectionPage {
 	std::string name;
-	std::vector<TitleItem> items;
+	std::vector<SectionItem> items;
 };
 
 struct BoardItem {
+	bool        is_top;
 	std::string url;
 	std::string title;
 	std::string author;
@@ -106,6 +108,7 @@ enum VIEWLINE_TYPE {
 	REFER,
 	REFER_MORE,
 	FROM,
+	ITEM_TOP,
 };
 class ViewLine
 {

@@ -283,6 +283,9 @@ static void Smth_PrintLn( VIEWLINE_TYPE type, const std::wstring& text )
 	case REFER_MORE: // Dark magenta
 		SetConsoleTextAttribute( h, FOREGROUND_GREEN | FOREGROUND_BLUE );
 		break;
+	case ITEM_TOP:
+		SetConsoleTextAttribute( h, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN );
+		break;
 	default:
 		break;
 	}
@@ -474,7 +477,16 @@ void Smth_OutputSectionPage( const SectionPage& page, LinkPositionState* state )
 		s = Smth_Utf8StringToWString(page.items[i].title);
 		int x, y;
 		Smth_GetCursorXY( x, y );
-		wprintf( L"  %s\n", s.c_str() );
+		std::wstring t = L"";
+		if ( page.items[i].type == "section" ) {
+			t = L"\uFF0B";
+			//t = L"+";
+		}
+		else if ( page.items[i].type == "board" ) {
+			t = L"\u25C6";
+			//t = L"*";
+		}
+		wprintf( L"  %1s  %s\n", t.c_str(), s.c_str() );
 		if ( state != nullptr && x >= 0 && y >= 0 ) {
 			state->Append( x, y, SMTH_DOMAIN + page.items[i].url );
 			state->posIndex = 0;
@@ -490,13 +502,21 @@ void Smth_OutputBoardPage( const BoardPage& page, LinkPositionState* state )
 	wprintf( L"  === %s(%s) ===\n", s.c_str(), t.c_str() );
 
 	for ( size_t i = 0; i < page.items.size(); ++i ) {
-		size_t index = page.items.size() - 1 - i;
+		//size_t index = page.items.size() - 1 - i;
+		size_t index = i;
 		s = Smth_Utf8StringToWString(page.items[index].title);
 		int x, y;
 		Smth_GetCursorXY( x, y );
 		std::wstring time = Smth_Utf8StringToWString(page.items[index].replier_time);
 		t = Smth_Utf8StringToWString(page.items[index].author);
-		wprintf( L"  %10s %12s %s\n", time.c_str(), t.c_str(), s.c_str() );
+		if ( t.length() == 5 ) {
+			if ( (int)t[0] == 0x539F && (int)t[1] == 0X5E16 
+					&& (int)t[2] == 0x5DF2 && (int)t[3] == 0x5220 && (int)t[4] == 0x9664 ) {
+				t = L"[DELETED]";
+			}
+		}
+		std::wstring top = page.items[index].is_top ? L"*" : L"";
+		wprintf( L"  %1s %-12s %-10s %s\n", top.c_str(), t.c_str(), time.c_str(), s.c_str() );
 
 		if ( state != nullptr && x >= 0 && y >= 0 ) {
 			state->Append( x, y, SMTH_DOMAIN + page.items[index].url );
@@ -562,13 +582,24 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 					page.name = um.str(1);
 				}
 				else {
-					TitleItem item;
+					SectionItem item;
 					//std::regex rr( "<a href=\"(.*?)\">(.+?)(\\(.*?\\))</a>", std::regex::ECMAScript );
 					std::regex rr( "<a href=\"(.*?)\">(.+?)</a>", std::regex::ECMAScript );
 					std::string tt = m.str();
 					if (std::regex_search( tt, um, rr ) ) {
 						item.url   = um.str(1);
 						item.title = Smth_ParseHtml( Smth_ClearHtmlTags( um.str(2) ) );
+						static const char* SectionTypes[] = {
+							"section",
+							"board",
+							"article",
+						};
+						for ( size_t k = 0; k < sizeof( SectionTypes ) / sizeof( SectionTypes[0] ); ++k ) {
+							if ( item.url.find( SectionTypes[k] ) != std::string::npos ) {
+								item.type = SectionTypes[k];
+								break;
+							}
+						}
 
 						page.items.push_back( item );
 					}
@@ -620,10 +651,14 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 				std::smatch um;
 				std::string mstr = m.str();
 				BoardItem item;
+				item.is_top = false;
 				std::regex rr( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
 				if (std::regex_search( mstr, um, rr ) ) {
 					item.url   = um.str(1);
 					item.title = Smth_ParseHtml( Smth_ClearHtmlTags( um.str(2) ) );
+				}
+				if ( mstr.find( "class=\"top\"" ) != std::string::npos ) {
+					item.is_top = true;
 				}
 
 				static const char* PATERN[] = {
