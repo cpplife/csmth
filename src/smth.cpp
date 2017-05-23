@@ -553,9 +553,9 @@ void Smth_OutputArticlePage( const ArticlePage& page, LinkPositionState* state )
 	}
 }
 
-SectionPage Smth_GetSectionPage( const std::string& htmlText )
+void Smth_GetSectionPage( const std::string& htmlText, SectionPage& page )
 {
-	SectionPage page;
+	page = SectionPage();
 
 	// Get the board name
 	std::smatch m;
@@ -609,12 +609,11 @@ SectionPage Smth_GetSectionPage( const std::string& htmlText )
 			}
 		}
 	}
-	return page;
 }
 
-BoardPage Smth_GetBoardPage( const std::string& htmlText )
+void Smth_GetBoardPage( const std::string& htmlText, BoardPage& page )
 {
-	BoardPage page;
+	page = BoardPage();
 
 	// Get the board name
 	std::smatch m;
@@ -680,11 +679,11 @@ BoardPage Smth_GetBoardPage( const std::string& htmlText )
 			}
 		}
 	}
-	return page;
 }
-ArticlePage Smth_GetArticlePage( const std::string& htmlText )
+
+void Smth_GetArticlePage( const std::string& htmlText, ArticlePage& page )
 {
-	ArticlePage page;
+	page = ArticlePage();
 
 	// Get the board name
 	std::smatch m;
@@ -733,7 +732,6 @@ ArticlePage Smth_GetArticlePage( const std::string& htmlText )
 			}
 		}
 	}
-	return page;
 }
 
 static std::string Smth_GetUrlCategory( const std::string& fullUrl )
@@ -786,17 +784,17 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 
 	if ( cat == "board" ) { 
 		result = Net_Get( fullUrl );
-		gsSmth.board = Smth_GetBoardPage( result );
+		Smth_GetBoardPage( result, gsSmth.board );
 		Smth_OutputBoardPage( gsSmth.board, state );
 	}
 	else if ( cat == "article" ) { 
 		result = Net_Get( fullUrl );
-		gsSmth.article = Smth_GetArticlePage( result );
+		Smth_GetArticlePage( result, gsSmth.article );
 		Smth_CreateViewFromArticlePage( gsSmth.article, gsSmth.view );
 	}
 	else {
 		result = Net_Get( fullUrl );
-		gsSmth.section = Smth_GetSectionPage( result );
+		Smth_GetSectionPage( result, gsSmth.section );
 		Smth_OutputSectionPage( gsSmth.section, state );
 	}
 

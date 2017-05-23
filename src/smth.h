@@ -208,11 +208,9 @@ private:
 };
 
 
-SectionPage Smth_GetSectionPage( const std::string& htmlText );
-
-BoardPage   Smth_GetBoardPage(   const std::string& htmlText );
-
-ArticlePage Smth_GetArticlePage( const std::string& htmlText );
+void Smth_GetSectionPage( const std::string& htmlText, SectionPage& outPage );
+void Smth_GetBoardPage( const std::string& htmlText, BoardPage& outPage );
+void Smth_GetArticlePage( const std::string& htmlText, ArticlePage& outPage );
 
 void Smth_OutputSectionPage( const SectionPage& page, LinkPositionState* state=nullptr );
 void Smth_OutputBoardPage( const BoardPage& page, LinkPositionState* state=nullptr );
