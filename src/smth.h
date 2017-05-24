@@ -96,17 +96,29 @@ struct LinkPositionState {
 		posIndex = index;
 	}
 
-	void NextPos() {
+	void GotoNext() {
 		posIndex++;
 		if ( posIndex >= (int)linkPositions.size() ) {
 			posIndex = (int)linkPositions.size() - 1;
 		}
 	}
 
-	void PrevPos() {
+	void GotoPrev() {
 		posIndex--;
 		if ( posIndex < 0 ) {
 			posIndex = 0;
+		}
+	}
+
+	void GotoFirst() {
+		if ( linkPositions.size() > 0 ) {
+			posIndex = 0;
+		}
+	}
+
+	void GotoLast() {
+		if ( linkPositions.size() > 0 ) {
+			posIndex = (int)linkPositions.size() - 1;
 		}
 	}
 

@@ -168,6 +168,8 @@ enum SMTH_KEY {
 	SK_CTRLC,
 	SK_NEXTPAGE,
 	SK_PREVPAGE,
+	SK_HOME,
+	SK_END,
 };
 
 static int Smth_GetPressedKey( void )
@@ -248,6 +250,10 @@ static int Smth_CheckPressedKey( void ) {
 					return SK_NEXTPAGE;
 				case VK_PRIOR:
 					return SK_PREVPAGE;
+				case VK_HOME:
+					return SK_HOME;
+				case VK_END:
+					return SK_END;
 				case 0x31:
 					if ( shiftPressed ) { // ! key
 						return SK_QUIT;
@@ -885,7 +891,7 @@ void Smth_Update( void )
 			break;
 		case SK_UP:
 			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
-			linkState.PrevPos();
+			linkState.GotoPrev();
 			if ( cat == "article" ) {
 				if ( gsSmth.view.ItemIndex() > 0 ) {
 					gsSmth.view.SetItemIndex( gsSmth.view.ItemIndex() - 1 );
@@ -901,7 +907,7 @@ void Smth_Update( void )
 		case SK_SPACE:
 		case SK_DOWN:
 			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
-			linkState.NextPos();
+			linkState.GotoNext();
 			if ( cat == "article" ) {
 				if ( gsSmth.view.ItemIndex() < gsSmth.view.ItemCount() - 1 ) {
 					gsSmth.view.SetItemIndex( gsSmth.view.ItemIndex() + 1 );
@@ -913,6 +919,15 @@ void Smth_Update( void )
 					}
 				}
 			}
+			break;
+		case SK_HOME:
+			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
+			linkState.GotoFirst();
+			break;
+		case SK_END:
+			Smth_ClearPosMarker( linkState.PosX(), linkState.PosY() );
+			linkState.GotoLast();
+			break;
 			break;
 		case SK_LEFT:
 			{
