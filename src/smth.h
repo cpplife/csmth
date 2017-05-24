@@ -81,6 +81,21 @@ struct LinkPositionState {
 		return posIndex >= 0 ? linkPositions[posIndex].y : -1;
 	}
 
+	void SetPos( int idx, int x, int y ) {
+		if ( posIndex >= 0 && posIndex < (int)linkPositions.size() ) {
+			linkPositions[idx].x = x;
+			linkPositions[idx].y = y;
+		}
+	}
+
+	int PosIndex() const {
+		return posIndex;
+	}
+
+	void SetPosIndex( int index ) {
+		posIndex = index;
+	}
+
 	void NextPos() {
 		posIndex++;
 		if ( posIndex >= (int)linkPositions.size() ) {

@@ -32,9 +32,15 @@ static const char* SMTH_HOMEPAGES[] = {
 
 static const int SMTH_HOMEPAGE_COUNT = sizeof(SMTH_HOMEPAGES)/sizeof(SMTH_HOMEPAGES[0]);
 
+struct PageRecord {
+	std::string url;
+	int posIndex;
+};
+
 static struct SmthModule {
-	std::stack<std::string> urlStack;
+	std::stack<PageRecord> urlStack;
 	std::string gotoUrl;
+	int         gotoPosIndex;
 
 	ArticlePage article;
 	BoardPage   board;
@@ -778,7 +784,12 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 	std::string cat = Smth_GetUrlCategory( fullUrl );
 	std::string result;
 
+	PageRecord pageRec;
+	pageRec.posIndex = -1;
+	pageRec.url  = fullUrl;
+
 	if ( state != nullptr ) {
+		pageRec.posIndex  = state->PosIndex();
 		state->Clear();
 	}
 
@@ -798,16 +809,16 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 		Smth_OutputSectionPage( gsSmth.section, state );
 	}
 
-	if ( gsSmth.urlStack.size() > 0 && gsSmth.urlStack.top() != fullUrl ) {
+	if ( gsSmth.urlStack.size() > 0 && gsSmth.urlStack.top().url != fullUrl ) {
 		if ( Smth_IsHomePageUrl( fullUrl ) ) {
 			gsSmth.urlStack.pop();
 		}
 		if ( !Smth_IsSubPageUrl( fullUrl ) ) {
-			gsSmth.urlStack.push( fullUrl );
+			gsSmth.urlStack.push( pageRec );
 		}
 	}
 	else if ( gsSmth.urlStack.size() == 0 ) {
-		gsSmth.urlStack.push( fullUrl );
+		gsSmth.urlStack.push( pageRec );
 	}
 }
 
@@ -817,6 +828,7 @@ bool Smth_Init( void )
 		_setmode(_fileno(stdout), _O_U16TEXT);
 
 		gsSmth.gotoUrl = SMTH_HOMEPAGES[0];
+		gsSmth.gotoPosIndex = -1;
 		return true;
 	}
 	return false;
@@ -860,6 +872,10 @@ void Smth_Update( void )
 			artileIndex = -1;
 		}
 
+		if ( gsSmth.gotoPosIndex != -1 ) {
+			linkState.SetPosIndex(gsSmth.gotoPosIndex);
+			gsSmth.gotoPosIndex = -1;
+		}
 		Smth_SetPosMarker( linkState.PosX(), linkState.PosY() );
 
 		c = Smth_CheckPressedKey();
@@ -901,8 +917,14 @@ void Smth_Update( void )
 		case SK_LEFT:
 			{
 				if ( gsSmth.urlStack.size() > 1 ) {
+					PageRecord rec = gsSmth.urlStack.top();
+					// Record the cursor pos.
+					gsSmth.gotoPosIndex = rec.posIndex;
+					// Clear the current page.
 					gsSmth.urlStack.pop();
-					gsSmth.gotoUrl = gsSmth.urlStack.top();
+					// Get the previous url.
+					rec = gsSmth.urlStack.top();
+					gsSmth.gotoUrl = rec.url;
 				}
 			}
 			break;
