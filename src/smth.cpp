@@ -7,6 +7,7 @@
 #include <locale>
 #include <stack>
 #include <io.h>
+#include <fstream>
 #include <fcntl.h>
 #include <conio.h>
 #include <windows.h>
@@ -47,6 +48,8 @@ static struct SmthModule {
 	SectionPage section;
 
 	PageView    view;
+
+	std::string cookiePath;
 
 	// Added class name and ctor/dtor to avoid compiling error (c2280 in windows)
 	SmthModule() {
@@ -800,17 +803,17 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 	}
 
 	if ( cat == "board" ) { 
-		result = Net_Get( fullUrl );
+		result = Net_Get( fullUrl, gsSmth.cookiePath );
 		Smth_GetBoardPage( result, gsSmth.board );
 		Smth_OutputBoardPage( gsSmth.board, state );
 	}
 	else if ( cat == "article" ) { 
-		result = Net_Get( fullUrl );
+		result = Net_Get( fullUrl, gsSmth.cookiePath );
 		Smth_GetArticlePage( result, gsSmth.article );
 		Smth_CreateViewFromArticlePage( gsSmth.article, gsSmth.view );
 	}
 	else {
-		result = Net_Get( fullUrl );
+		result = Net_Get( fullUrl, gsSmth.cookiePath );
 		Smth_GetSectionPage( result, gsSmth.section );
 		Smth_OutputSectionPage( gsSmth.section, state );
 	}
@@ -828,6 +831,29 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 	}
 }
 
+static bool Smth_CheckCookie( const std::string& cookiePath, const std::string& userName )
+{
+	std::string content;
+	std::ifstream is( cookiePath.c_str(), std::ifstream::binary );
+	if ( is ) {
+		is.seekg( 0, is.end );
+		int length = (int)is.tellg();
+		is.seekg( 0, is.beg );
+
+		if ( length > 0 ) {
+			char* buffer = new char[length];
+			is.read( buffer, length );
+			content = buffer;
+			delete[] buffer;
+		}
+		is.close();
+	}
+	if ( content.find( userName ) != std::string::npos ) {
+		return true;
+	}
+	return false;
+}
+
 bool Smth_Init( void )
 {
 	if ( Net_Init() ) {
@@ -835,6 +861,7 @@ bool Smth_Init( void )
 
 		gsSmth.gotoUrl = SMTH_HOMEPAGES[0];
 		gsSmth.gotoPosIndex = -1;
+		gsSmth.cookiePath = "";
 		return true;
 	}
 	return false;
@@ -842,10 +869,36 @@ bool Smth_Init( void )
 
 void Smth_Deinit( void )
 {
+	// Remove cookie file.
+	if ( gsSmth.cookiePath.length() > 0 ) {
+		remove( gsSmth.cookiePath.c_str() );
+	}
 	Net_Deinit();
 }
 
-void Smth_Update( void )
+bool Smth_Login( const std::string& name, const std::string& pwd )
+{
+	std::string data = "id=" + name + "&passwd=" + pwd;
+	std::string tempDir = getenv("TEMP");
+	if ( tempDir.length() == 0 ) {
+		tempDir = getenv( "TMP" );
+	}
+	if ( tempDir.length() == 0 ) {
+		gsSmth.cookiePath = "";
+		return false;
+	}
+	gsSmth.cookiePath = tempDir + "/csmth.cookie";
+
+	Net_Login( "m.newsmth.net/user/login", data, gsSmth.cookiePath );
+	if ( Smth_CheckCookie( gsSmth.cookiePath, name ) ) {
+		return true;
+	}
+	// Clear cookie path if login failed.
+	gsSmth.cookiePath = "";
+	return false;
+}
+
+void Smth_RunLoop( void )
 {
 	int c = 0;
 

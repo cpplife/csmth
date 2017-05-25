@@ -72,7 +72,7 @@ static size_t Net_CurlWriteCallback( char* ptr, size_t size, size_t nmemb, void*
 	return size*nmemb;
 }
 
-std::string Net_Get( const std::string& url )
+std::string Net_Get( const std::string& url, const std::string& cookie_file )
 {
 	if (gsNetInst.libcurl == nullptr) return std::string();
 
@@ -86,6 +86,45 @@ std::string Net_Get( const std::string& url )
 		gsNetInst.curl_easy_setopt( curl, CURLOPT_HTTPHEADER, chunk );
 		gsNetInst.curl_easy_setopt( curl, CURLOPT_URL, url.c_str() );
 		gsNetInst.curl_easy_setopt( curl, CURLOPT_VERBOSE, 0 );
+
+		if ( cookie_file.length() > 0 ) {
+			gsNetInst.curl_easy_setopt( curl, CURLOPT_COOKIEFILE, cookie_file.c_str() );
+		}
+
+		gsNetInst.curl_easy_setopt( curl, CURLOPT_WRITEFUNCTION, Net_CurlWriteCallback );
+		gsNetInst.curl_easy_setopt( curl, CURLOPT_WRITEDATA, &data );
+
+		CURLcode res = gsNetInst.curl_easy_perform( curl );
+
+		gsNetInst.curl_slist_free_all( chunk );
+
+	}
+	gsNetInst.curl_easy_cleanup( curl );
+
+	std::string utf8_text = std::string( data.begin(), data.end() );
+
+	return utf8_text;
+}
+
+std::string Net_Login( const std::string& url, const std::string& postData, const std::string& cookie_file )
+{
+	if (gsNetInst.libcurl == nullptr) return std::string();
+
+	std::vector<char> data;
+
+	CURL* curl = gsNetInst.curl_easy_init();
+	if ( curl != nullptr ) {
+		curl_slist* chunk = nullptr;
+		chunk = gsNetInst.curl_slist_append( chunk, "Accept:" );
+
+		gsNetInst.curl_easy_setopt( curl, CURLOPT_HTTPHEADER, chunk );
+		gsNetInst.curl_easy_setopt( curl, CURLOPT_URL, url.c_str() );
+		gsNetInst.curl_easy_setopt( curl, CURLOPT_POSTFIELDS, postData.c_str() );
+		gsNetInst.curl_easy_setopt( curl, CURLOPT_VERBOSE, 0 );
+
+		if ( cookie_file.length() > 0 ) {
+			gsNetInst.curl_easy_setopt( curl, CURLOPT_COOKIEJAR, cookie_file.c_str() );
+		}
 
 		gsNetInst.curl_easy_setopt( curl, CURLOPT_WRITEFUNCTION, Net_CurlWriteCallback );
 		gsNetInst.curl_easy_setopt( curl, CURLOPT_WRITEDATA, &data );

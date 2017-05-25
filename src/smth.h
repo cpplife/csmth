@@ -249,6 +249,8 @@ std::wstring Smth_Utf8StringToWString( const std::string& text );
 bool Smth_Init( void );
 void Smth_Deinit( void );
 
-void Smth_Update( void );
+bool Smth_Login( const std::string& name, const std::string& pwd );
+
+void Smth_RunLoop( void );
 
 #endif // #ifndef SMTH_H_170505112940
