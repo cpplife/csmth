@@ -13,7 +13,6 @@
 #include <windows.h>
 
 #include "net_util.h"
-#include "tinyxml2.h"
 #include "smth.h"
 
 
@@ -143,6 +142,43 @@ static bool Smth_GetCursorXY( int& x, int& y )
 		return true;
 	}
 	return false;
+}
+
+static bool Smth_IsWhiteSpaces( char c )
+{
+	static const char SPACE_CHARS[] = " \t\r\n";
+	for ( int i = 0; i < sizeof(SPACE_CHARS)/sizeof(char); ++i ) {
+		if ( c == SPACE_CHARS[i] ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static std::string Smth_StripWhiteSpaces( const std::string& text )
+{
+	std::string result = text;
+	// Strip left white spaces.
+	int i = 0;
+	for ( ; i < (int)text.length(); ++i ) {
+		if ( Smth_IsWhiteSpaces( text[i] ) ) {
+			continue;
+		}
+		break;
+	}
+	result = text.substr( i );
+
+	// Strip right white spaces.
+	for ( i = (int)result.length() - 1; i >= 0; --i ) {
+		if ( Smth_IsWhiteSpaces( text[i] ) ) {
+			continue;
+		}
+		break;
+	}
+	if ( i >= 0 ) {
+		result = result.substr( 0, i + 1 );
+	}
+	return result;
 }
 
 #if 0
@@ -876,8 +912,32 @@ void Smth_Deinit( void )
 	Net_Deinit();
 }
 
-bool Smth_Login( const std::string& name, const std::string& pwd )
+bool Smth_Login( void )
 {
+	std::string name, pwd;
+	char input[256];
+	while ( name.length() == 0 ) {
+		wprintf( L"login as: " );
+		if ( fgets( input, 256, stdin ) != nullptr ) {
+			name = Smth_StripWhiteSpaces( input );
+		}
+		if ( name.length() == 0 ) {
+			wprintf( L"\n" );
+		}
+	}
+
+	if ( name == "guest" ) return false;
+
+	while ( pwd.length() == 0 ) {
+		wprintf( L"password: " );
+		if ( fgets( input, 256, stdin ) != nullptr ) {
+			pwd = Smth_StripWhiteSpaces( input );
+		}
+		if ( pwd.length() == 0 ) {
+			wprintf( L"\n" );
+		}
+	}
+
 	std::string data = "id=" + name + "&passwd=" + pwd;
 	std::string tempDir = getenv("TEMP");
 	if ( tempDir.length() == 0 ) {

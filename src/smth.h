@@ -249,7 +249,7 @@ std::wstring Smth_Utf8StringToWString( const std::string& text );
 bool Smth_Init( void );
 void Smth_Deinit( void );
 
-bool Smth_Login( const std::string& name, const std::string& pwd );
+bool Smth_Login( );
 
 void Smth_RunLoop( void );
 
