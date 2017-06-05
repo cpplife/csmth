@@ -47,6 +47,13 @@ struct ArticlePage {
 	std::vector<ArticleItem> items;
 };
 
+struct ArticleInfo {
+	std::string board_cn;
+	std::string board_en;
+	std::string author;
+	std::string author_time;
+};
+
 struct LinkPos {
 	int x;
 	int y;
