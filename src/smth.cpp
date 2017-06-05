@@ -92,7 +92,7 @@ static bool Smth_IsSubPageUrl( const std::string& fullUrl )
 
 static bool Smth_IsArticlePageUrl( const std::string& url )
 {
-	size_t index = fullUrl.find( "/article/" );
+	size_t index = url.find( "/article/" );
 	if ( index != std::string::npos ) {
 		return true;
 	}
@@ -793,7 +793,7 @@ void Smth_GetArticlePage( const std::string& htmlText, ArticlePage& page )
 	}
 }
 
-static ArticleInfo Smth_GetArticleInfo( const std::string& url )
+static ArticleInfo Smth_GetArticleInfo(const std::string& htmlText)
 {
 	ArticleInfo info;
 
@@ -835,8 +835,6 @@ static ArticleInfo Smth_GetArticleInfo( const std::string& url )
 					info.author_time = um.str(1);
 				}
 
-
-				page.items.push_back( item );
 				titleText = m.suffix();
 			}
 		}
@@ -1192,6 +1190,66 @@ PageView::PageView( size_t w, size_t h )
 	: width( w ), height( h )
 {
 	itemIndex = -1;
+}
+
+void PageView::ParseSection( const std::string& text )
+{
+	std::wstring wt = Smth_Utf8StringToWString( text );
+	
+	PageViewItem item;
+	ViewLine line( TEXT );
+	VIEWLINE_TYPE prevLineType = TEXT;
+	size_t charCount = 0;
+	for ( size_t i = 0; i < wt.length(); ++i ) {
+		wchar_t c = wt[i];
+		int charSize = 1;
+		if ( c > 127 ) {
+			// Unicode char as 2 chars
+			// TODO: This is not right, need to polish.
+			charSize = 2;
+		}
+		if ( c == L'\n' ) {
+
+			line.SetType( AdjustLineType( line, prevLineType ) );
+			prevLineType = line.Type();
+			item.Append( line );
+			if ( item.LineCount() == height ) {
+				items.push_back( item );
+				item.Clear();
+			}
+
+			line.Clear();
+			charCount = 0;
+			continue;
+		}
+		if ( charCount + charSize > width ) {
+
+			line.SetType( AdjustLineType( line, prevLineType ) );
+			prevLineType = line.Type();
+			item.Append( line );
+			if ( item.LineCount() == height ) {
+				items.push_back( item );
+				item.Clear();
+			}
+
+			line.Clear();
+			line.SetType( TEXT_MORE );
+			line.Append( c );
+			charCount = charSize;
+			continue;
+		}
+		line.Append( c );
+		charCount += charSize;
+
+	}
+	if ( line.Length() > 0 ) {
+		line.SetType( AdjustLineType( line, prevLineType ) );
+		prevLineType = line.Type();
+		item.Append( line );
+	}
+	if ( item.LineCount() > 0 ) {
+		items.push_back( item );
+	}
 }
 
 void PageView::ParseArticle( const std::string& text )
