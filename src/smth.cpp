@@ -105,6 +105,26 @@ static std::string Smth_ClearHtmlTags( const std::string& text )
 	return s;
 }
 
+static std::string Smth_ClearHtmlComments( const std::string& text )
+{
+	std::string s;
+	std::string::size_type idx0 = 0;
+	auto idx1 = text.find( "<!--" );
+	auto idx2 = text.find( "-->" );
+	while ( idx1 != std::string::npos && idx2 != std::string::npos ) {
+		s += text.substr( idx0, idx1 - idx0 );
+		idx0 = idx2 + 3;
+		idx1 = text.find( "<!--", idx0 );
+		idx2 = text.find( "-->",  idx0 );
+	}
+
+	if ( idx0 < text.length() ) {
+		s += text.substr( idx0 );
+	}
+
+	return s;
+}
+
 static void Smth_GotoXY( int x, int y )
 {
 	if ( x < 0 || y < 0 ) return;
@@ -840,16 +860,19 @@ static void Smth_GotoUrl( const std::string& fullUrl, LinkPositionState* state=n
 
 	if ( cat == "board" ) { 
 		result = Net_Get( fullUrl, gsSmth.cookiePath );
+		result = Smth_ClearHtmlComments( result );
 		Smth_GetBoardPage( result, gsSmth.board );
 		Smth_OutputBoardPage( gsSmth.board, state );
 	}
 	else if ( cat == "article" ) { 
 		result = Net_Get( fullUrl, gsSmth.cookiePath );
+		result = Smth_ClearHtmlComments( result );
 		Smth_GetArticlePage( result, gsSmth.article );
 		Smth_CreateViewFromArticlePage( gsSmth.article, gsSmth.view );
 	}
 	else {
 		result = Net_Get( fullUrl, gsSmth.cookiePath );
+		result = Smth_ClearHtmlComments( result );
 		Smth_GetSectionPage( result, gsSmth.section );
 		Smth_OutputSectionPage( gsSmth.section, state );
 	}
