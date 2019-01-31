@@ -47,6 +47,13 @@ struct ArticlePage {
 	std::vector<ArticleItem> items;
 };
 
+struct ArticleInfo {
+	std::string board_cn;
+	std::string board_en;
+	std::string author;
+	std::string author_time;
+};
+
 struct LinkPos {
 	int x;
 	int y;
@@ -207,6 +214,7 @@ class PageView
 public:
 	PageView( size_t w=80, size_t h=24 );
 	void ParseArticle( const std::string& text );
+	void ParseSection( const std::string& text );
 	void Output( LinkPositionState* state = nullptr ) const;
 	VIEWLINE_TYPE AdjustLineType( const ViewLine& line, VIEWLINE_TYPE prevLineType ) const;
 	void SetItemIndex( int idx )

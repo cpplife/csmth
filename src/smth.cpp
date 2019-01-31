@@ -90,6 +90,14 @@ static bool Smth_IsSubPageUrl( const std::string& fullUrl )
 	return false;
 }
 
+static bool Smth_IsArticlePageUrl( const std::string& url )
+{
+	size_t index = url.find( "/article/" );
+	if ( index != std::string::npos ) {
+		return true;
+	}
+	return false;
+}
 
 static std::string Smth_ClearHtmlTags( const std::string& text )
 {
@@ -805,6 +813,56 @@ void Smth_GetArticlePage( const std::string& htmlText, ArticlePage& page )
 	}
 }
 
+static ArticleInfo Smth_GetArticleInfo(const std::string& htmlText)
+{
+	ArticleInfo info;
+
+	// Get the board name
+	std::smatch m;
+	std::regex r( "<div class=\"menu sp\">.*?</a>\\|(.*?)</div>", std::regex::ECMAScript );
+	if ( std::regex_search( htmlText, m, r ) ) {
+		std::string s = m.str(1);
+		size_t i = s.find( '-' );
+		if ( i != std::string::npos ) {
+			size_t j = s.find( '(' );
+			size_t k = s.find( ')' );
+			info.board_cn = s.substr( i + 1, j - i - 1 );
+			info.board_en = s.substr( j + 1, k - j - 1 );
+		}
+	}
+
+	// Get content.
+	const char* beginTag = "<ul class=\"list sec\">";
+	const char* endTag = "</ul>";
+	size_t index = htmlText.find( beginTag );
+	if ( index != std::string::npos ) {
+		size_t end = htmlText.find( endTag, index + 1 );
+		if ( end != std::string::npos ) {
+			
+			std::string titleText = htmlText.substr( index, end - index );
+			//
+			r.assign( "<li[^>]*>.+?</li>", std::regex::ECMAScript );
+			while ( std::regex_search( titleText, m, r ) ) {
+				std::smatch um;
+				std::string mstr = m.str();
+				std::regex rr( "<div><a href=\"(.*?)\".*?>(.+?)</a>", std::regex::ECMAScript );
+				if (std::regex_search( mstr, um, rr ) ) {
+					info.author = Smth_ParseHtml( Smth_ClearHtmlTags( um.str(2) ) );
+				}
+
+				rr.assign( "<a class=\"plant\">(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})</a>", std::regex::ECMAScript );
+				if (std::regex_search( mstr, um, rr ) ) {
+					info.author_time = um.str(1);
+				}
+
+				titleText = m.suffix();
+			}
+		}
+	}
+
+	return info;
+}
+
 static std::string Smth_GetUrlCategory( const std::string& fullUrl )
 {
 	size_t index = fullUrl.find( SMTH_DOMAIN );
@@ -1155,6 +1213,66 @@ PageView::PageView( size_t w, size_t h )
 	: width( w ), height( h )
 {
 	itemIndex = -1;
+}
+
+void PageView::ParseSection( const std::string& text )
+{
+	std::wstring wt = Smth_Utf8StringToWString( text );
+	
+	PageViewItem item;
+	ViewLine line( TEXT );
+	VIEWLINE_TYPE prevLineType = TEXT;
+	size_t charCount = 0;
+	for ( size_t i = 0; i < wt.length(); ++i ) {
+		wchar_t c = wt[i];
+		int charSize = 1;
+		if ( c > 127 ) {
+			// Unicode char as 2 chars
+			// TODO: This is not right, need to polish.
+			charSize = 2;
+		}
+		if ( c == L'\n' ) {
+
+			line.SetType( AdjustLineType( line, prevLineType ) );
+			prevLineType = line.Type();
+			item.Append( line );
+			if ( item.LineCount() == height ) {
+				items.push_back( item );
+				item.Clear();
+			}
+
+			line.Clear();
+			charCount = 0;
+			continue;
+		}
+		if ( charCount + charSize > width ) {
+
+			line.SetType( AdjustLineType( line, prevLineType ) );
+			prevLineType = line.Type();
+			item.Append( line );
+			if ( item.LineCount() == height ) {
+				items.push_back( item );
+				item.Clear();
+			}
+
+			line.Clear();
+			line.SetType( TEXT_MORE );
+			line.Append( c );
+			charCount = charSize;
+			continue;
+		}
+		line.Append( c );
+		charCount += charSize;
+
+	}
+	if ( line.Length() > 0 ) {
+		line.SetType( AdjustLineType( line, prevLineType ) );
+		prevLineType = line.Type();
+		item.Append( line );
+	}
+	if ( item.LineCount() > 0 ) {
+		items.push_back( item );
+	}
 }
 
 void PageView::ParseArticle( const std::string& text )
