@@ -2,7 +2,10 @@
 #include <thread>
 #include <vector>
 
-#include "curl.h"
+#define CURL_STATICLIB
+
+
+#include "curl/curl.h"
 #include "net_util.h"
 
 #define CURL_APIENTRY
@@ -15,8 +18,6 @@ typedef struct curl_slist*(CURL_APIENTRY* PFN_CURL_SLIST_APPEND) (struct curl_sl
 typedef void (CURL_APIENTRY* PFN_CURL_SLIST_FREE_ALL) (struct curl_slist * list);
 
 static struct {
-
-	void* libcurl;
 
 	PFN_CURL_EASY_INIT    curl_easy_init;
 	PFN_CURL_EASY_CLEANUP curl_easy_cleanup;
@@ -31,18 +32,13 @@ static struct {
 
 bool Net_Init( void )
 {
-	gsNetInst.libcurl = LoadLibraryA( "libcurl.dll" );
-	if ( gsNetInst.libcurl == nullptr ) {
-		return false;
-	}
+	gsNetInst.curl_easy_init = (PFN_CURL_EASY_INIT)&curl_easy_init;
+	gsNetInst.curl_easy_cleanup = (PFN_CURL_EASY_CLEANUP)&curl_easy_cleanup;
+	gsNetInst.curl_easy_setopt  = (PFN_CURL_EASY_SETOPT)&curl_easy_setopt;
+	gsNetInst.curl_easy_perform = (PFN_CURL_EASY_PERFORM)&curl_easy_perform;
 
-	gsNetInst.curl_easy_init    = (PFN_CURL_EASY_INIT)GetProcAddress(    (HMODULE)gsNetInst.libcurl, "curl_easy_init"    );
-	gsNetInst.curl_easy_cleanup = (PFN_CURL_EASY_CLEANUP)GetProcAddress( (HMODULE)gsNetInst.libcurl, "curl_easy_cleanup" );
-	gsNetInst.curl_easy_setopt  = (PFN_CURL_EASY_SETOPT)GetProcAddress(  (HMODULE)gsNetInst.libcurl, "curl_easy_setopt"  );
-	gsNetInst.curl_easy_perform = (PFN_CURL_EASY_PERFORM)GetProcAddress( (HMODULE)gsNetInst.libcurl, "curl_easy_perform" );
-
-	gsNetInst.curl_slist_append   = (PFN_CURL_SLIST_APPEND)GetProcAddress(   (HMODULE)gsNetInst.libcurl, "curl_slist_append"   );
-	gsNetInst.curl_slist_free_all = (PFN_CURL_SLIST_FREE_ALL)GetProcAddress( (HMODULE)gsNetInst.libcurl, "curl_slist_free_all" );
+	gsNetInst.curl_slist_append   = (PFN_CURL_SLIST_APPEND)&curl_slist_append;
+	gsNetInst.curl_slist_free_all = (PFN_CURL_SLIST_FREE_ALL)&curl_slist_free_all;
 
 
 	return true;
@@ -58,10 +54,6 @@ void Net_Deinit( void )
 	gsNetInst.curl_slist_append   = nullptr;
 	gsNetInst.curl_slist_free_all = nullptr;
 
-	if ( gsNetInst.libcurl != nullptr ) {
-		FreeLibrary( (HMODULE)gsNetInst.libcurl );
-	}
-	gsNetInst.libcurl = nullptr;
 }
 
 static size_t Net_CurlWriteCallback( char* ptr, size_t size, size_t nmemb, void* userdata )
@@ -74,8 +66,6 @@ static size_t Net_CurlWriteCallback( char* ptr, size_t size, size_t nmemb, void*
 
 std::string Net_Get( const std::string& url, const std::string& cookie_file )
 {
-	if (gsNetInst.libcurl == nullptr) return std::string();
-
 	std::vector<char> data;
 
 	CURL* curl = gsNetInst.curl_easy_init();
@@ -108,8 +98,6 @@ std::string Net_Get( const std::string& url, const std::string& cookie_file )
 
 std::string Net_Login( const std::string& url, const std::string& postData, const std::string& cookie_file )
 {
-	if (gsNetInst.libcurl == nullptr) return std::string();
-
 	std::vector<char> data;
 
 	CURL* curl = gsNetInst.curl_easy_init();

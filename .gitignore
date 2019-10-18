@@ -29,4 +29,5 @@ Debug/
 Win32/
 ipch/
 *.dir/
+build/
 
